@@ -1,13 +1,17 @@
+from abc import ABC, abstractmethod
+
 import pygame as pg
 import logging as log
 
-from pygame.sprite import Sprite
 from pygame.surface import Surface
+
+SOFT_GREEN = (186, 254, 202)
+BLUE = (0, 0, 248)
 
 log.basicConfig(level=log.DEBUG)
 pg.init()
 
-KEN_STAGES = [
+KEN_STAGE_PATHS = [
     'assets/KenStage/frame_0_delay-0.2s.gif',
     'assets/KenStage/frame_1_delay-0.25s.gif',
     'assets/KenStage/frame_2_delay-0.02s.gif',
@@ -15,32 +19,69 @@ KEN_STAGES = [
     'assets/KenStage/frame_4_delay-0.2s.gif',
 ]
 
+RYU_SPRITES_PATH = 'assets/Ryu.png'
 
-class SpriteSheet(Sprite):
-    def __init__(self, sheet_path: str):
+
+class SpriteSheet(ABC):
+    def __init__(self):
+        self.current_num_frames = 0
+        self.max_num_frames = 30
+        self.index = 0
+
+    @abstractmethod
+    def get_sprite(self) -> Surface:
+        pass
+
+
+class BackgroundSprite(SpriteSheet):
+    def __init__(self, paths: list[str]):
         super().__init__()
-        self.sprite_sheet = pg.image.load(sheet_path).convert()
-        self.width = self.sprite_sheet.get_width()
-        self.height = self.sprite_sheet.get_height()
-        self.scaler = 1
-
-    def scale(self, *args):
-        assert len(args) in (1, 2), 'args must have 1 or 2 arguments'
-        if len(args) == 1:
-            self.width *= args[0]
-            self.height *= args[0]
-        else:
-            self.width, self.height = args
-
-        return self
+        self.bg_sprites = [pg.image.load(path).convert() for path in paths]
 
     def get_sprite(self) -> Surface:
-        return pg.transform.scale(self.sprite_sheet, (self.width, self.height))
+        self.current_num_frames += 1
+        if self.current_num_frames >= self.max_num_frames:
+            self.current_num_frames = 0
+            self.index = (self.index + 1) % len(self.bg_sprites)
+        return self.bg_sprites[self.index]
 
 
-class Player:
-    def __init__(self):
-        pass
+class Player(SpriteSheet):
+    def __init__(self, path: str, flip=False):
+        super().__init__()
+        scaler = 2.5
+        self.sprite = pg.image.load(path).convert()
+        self.flip = flip
+        self.sprites: [Surface] = [
+            self.sprite.subsurface(pg.Rect(0, 0, 70, 120)),
+            self.sprite.subsurface(pg.Rect(70, 0, 70, 120)),
+            self.sprite.subsurface(pg.Rect(140, 0, 70, 120)),
+            self.sprite.subsurface(pg.Rect(205, 0, 70, 120)),
+            self.sprite.subsurface(pg.Rect(270, 0, 70, 120)),
+        ]
+        for sprite in self.sprites:
+            sprite.set_colorkey(BLUE, pg.RLEACCEL)
+
+        self.sprites = [
+            pg.transform.scale(sprite, (sprite.get_width() * scaler, sprite.get_height() * scaler))
+            for sprite in self.sprites
+        ]
+
+    def get_sprite(self) -> Surface:
+        self.current_num_frames += 1
+        if self.current_num_frames >= self.max_num_frames:
+            self.current_num_frames = 0
+            self.index = (self.index + 1) % len(self.sprites)
+
+        if self.flip:
+            return pg.transform.flip(self.sprites[self.index], True, False)
+
+        return self.sprites[self.index]
+
+    def get_init_coord(self, x: int, y: int) -> tuple[int, int]:
+        if self.flip:
+            return x - self.sprites[0].get_width(), y - self.sprites[0].get_height()
+        return x, y - self.sprites[0].get_height()
 
 
 class GameManager:
@@ -54,11 +95,9 @@ class GameManager:
         self.clock = pg.time.Clock()
         self.timer = 90.0
         self.delta_t = 1 / self.fps
-        self.bg_sprites = [
-            SpriteSheet(path).scale(self.screen_width, self.screen_height).get_sprite() for path in KEN_STAGES
-        ]
-        self.bg_index = 0
-        self.bg_frames_count = 0
+        self.bg_sprite: SpriteSheet = BackgroundSprite(KEN_STAGE_PATHS)
+        self.player1 = Player(RYU_SPRITES_PATH)
+        self.player2 = Player(RYU_SPRITES_PATH, True)
 
     def run(self):
         # main loop
@@ -79,12 +118,18 @@ class GameManager:
         pg.quit()
 
     def update(self):
-        self.bg_frames_count += 1
-        if self.bg_frames_count >= 30:
-            self.bg_frames_count = 0
-            self.bg_index = (self.bg_index + 1) % len(self.bg_sprites)
-        self.screen.blit(self.bg_sprites[self.bg_index], (0, 0))
-        pg.display.flip()
+        self.screen.blit(
+            pg.transform.scale(self.bg_sprite.get_sprite(), (self.screen_width, self.screen_height)),
+            (0, 0),
+        )
+        self.screen.blit(
+            self.player1.get_sprite(),
+            self.player1.get_init_coord(50, 630),
+        )
+        self.screen.blit(
+            self.player2.get_sprite(),
+            self.player2.get_init_coord(1230, 630),
+        )
         pg.display.update()
 
     def log(self):
