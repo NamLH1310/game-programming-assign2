@@ -57,15 +57,13 @@ class BackgroundSprite(SpriteSheet):
 
 
 class Player(SpriteSheet):
-    def __init__(self, path: str, x: int, y: int, flip=False):
+    def __init__(self, path: str, x: int, y: int, flip: bool):
         super().__init__()
         scaler = 2.5
         self.sprite = pg.image.load(path).convert()
         self.state = State.IDLE
         self.velocity = 4
         self.flip = flip
-        self.x = x
-        self.y = y
 
         self.idle_sprites: list[Surface] = [
             self.sprite.subsurface(pg.Rect(0, 0, 70, 110)),
@@ -95,8 +93,6 @@ class Player(SpriteSheet):
 
         self.y = y - self.idle_sprites[0].get_height()
         self.x = x
-        if self.flip:
-            self.x -= self.idle_sprites[0].get_width()
         self.w = self.current_sprites[self.index].get_width()
         self.h = self.current_sprites[self.index].get_height()
 
@@ -106,6 +102,10 @@ class Player(SpriteSheet):
             pg.transform.scale(sprite, (sprite.get_width() * scaler, sprite.get_height() * scaler))
             for sprite in sprites
         ]
+
+    @property
+    def direction(self):
+        return 0 if self.flip else 1
 
     def get_sprite(self) -> Surface:
         match self.state:
@@ -133,13 +133,17 @@ class Player(SpriteSheet):
 
     def handle_input(self):
         key_pressed = pg.key.get_pressed()
-        if key_pressed[pg.K_RIGHT]:
-            self.state = State.MOVE_RIGHT
+        if key_pressed[pg.K_RIGHT] and (key_pressed[pg.K_LSHIFT] or key_pressed[pg.K_RSHIFT]):
+            self.flip = False
+        elif key_pressed[pg.K_LEFT] and (key_pressed[pg.K_LSHIFT] or key_pressed[pg.K_RSHIFT]):
+            self.flip = True
+        elif key_pressed[pg.K_RIGHT]:
+            self.state = State.MOVE_LEFT if self.direction == 0 else State.MOVE_RIGHT
             self.x += self.velocity
             if self.x > 1280 - self.w:
                 self.x = 1280 - self.w
         elif key_pressed[pg.K_LEFT]:
-            self.state = State.MOVE_LEFT
+            self.state = State.MOVE_LEFT if self.direction == 1 else State.MOVE_RIGHT
             self.x -= self.velocity
             if self.x < 0:
                 self.x = 0
@@ -161,8 +165,8 @@ class GameManager:
         self.bg_sprite: SpriteSheet = BackgroundSprite(KEN_STAGE_PATHS)
         self.player_idx = 0
         self.players: list[Player] = [
-            Player(RYU_SPRITES_PATH, 50, 620),
-            Player(RYU_SPRITES_PATH, 1230, 620, True),
+            Player(RYU_SPRITES_PATH, 50, 620, False),
+            Player(RYU_SPRITES_PATH, self.screen_width - 230, 620, True),
         ]
 
     def run(self):
