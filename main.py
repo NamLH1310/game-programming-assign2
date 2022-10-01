@@ -1,5 +1,10 @@
 from abc import ABC, abstractmethod
+from audioop import add
 from enum import Enum
+from re import S
+from tkinter import Y
+from turtle import Screen
+from typing import Tuple
 
 import pygame as pg
 import logging as log
@@ -35,7 +40,7 @@ class State(Enum):
 class SpriteSheet(ABC):
     def __init__(self):
         self.current_num_frames = 0
-        self.max_num_frames = 30
+        self.max_num_frames = 20
         self.index = 0
 
     @abstractmethod
@@ -64,6 +69,12 @@ class Player(SpriteSheet):
         self.state = State.IDLE
         self.velocity = 4
         self.flip = flip
+        self.action = False
+        self.hurt_box:dict[State,Tuple]={State.ATTACK:(15*scaler,20*scaler,40*scaler,80*scaler),
+                                   State.GUARD:(15*scaler,20*scaler,40*scaler,80*scaler),
+                                   State.JUMP:(15*scaler,20*scaler,40*scaler,80*scaler),
+                                   State.IDLE:(15*scaler,20*scaler,40*scaler,80*scaler)}
+        self.hit_box: Tuple = (70*scaler,20*scaler,50*scaler,10*scaler)
 
         self.idle_sprites: list[Surface] = [
             self.sprite.subsurface(pg.Rect(0, 0, 70, 110)),
@@ -83,12 +94,32 @@ class Player(SpriteSheet):
             self.sprite.subsurface(pg.Rect(425, 120, 65, 110)),
             self.sprite.subsurface(pg.Rect(490, 120, 65, 110)),
         ]
-        for sprite in self.idle_sprites + self.move_right_sprites + self.move_left_sprites:
+        
+        self.attack_sprites: list[Surface] = [
+            self.sprite.subsurface(pg.Rect(160, 460, 125, 110)),
+            self.sprite.subsurface(pg.Rect(80, 460, 70, 110)),
+            self.sprite.subsurface(pg.Rect(0, 460, 70, 110)),
+        ]
+         # TODO add
+        self.jump_sprite: list[Surface]= [
+            self.sprite.subsurface(pg.Rect(0, 340, 70, 110)),
+            self.sprite.subsurface(pg.Rect(80, 340, 70, 110)),
+            self.sprite.subsurface(pg.Rect(160, 340, 125, 110)),
+            self.sprite.subsurface(pg.Rect(0, 460, 70, 110)),
+            self.sprite.subsurface(pg.Rect(80, 460, 70, 110)),
+            self.sprite.subsurface(pg.Rect(160, 460, 125, 110)),
+            self.sprite.subsurface(pg.Rect(0, 460, 70, 110)),
+            self.sprite.subsurface(pg.Rect(80, 460, 70, 110)),
+            self.sprite.subsurface(pg.Rect(160, 460, 125, 110)),   
+        ]
+        
+        for sprite in self.idle_sprites + self.move_right_sprites + self.move_left_sprites +self.attack_sprites:
             sprite.set_colorkey(BLUE, pg.RLEACCEL)
 
         self.idle_sprites = self.scale_sprite(self.idle_sprites, scaler)
         self.move_right_sprites = self.scale_sprite(self.move_right_sprites, scaler)
         self.move_left_sprites = self.scale_sprite(self.move_left_sprites, scaler)
+        self.attack_sprites = self.scale_sprite(self.attack_sprites,scaler)
         self.current_sprites = self.idle_sprites
 
         self.y = y - self.idle_sprites[0].get_height()
@@ -107,6 +138,36 @@ class Player(SpriteSheet):
     def direction(self):
         return 0 if self.flip else 1
 
+    def get_hit(self, opp):
+        
+        if(opp.state !=State.ATTACK) or self.state==State.GUARD:
+            return
+        
+        x,y= opp.get_coord()
+        
+        hitbox=opp.hit_box
+        
+        flip=opp.flip
+        
+        addon=0
+        
+        if self.state==State.ATTACK:
+            if self.index==0:
+               addon= self.hit_box[2]
+        
+        min=(x+hitbox[0]-opp.w,y+hitbox[1]) if flip else (x+hitbox[0],y+hitbox[1]) 
+        max=(min[0]+hitbox[2],min[1]+hitbox[3])  
+        hurtbox_min=(self.x+self.hurt_box[self.state][0]+addon,self.y+self.hurt_box[self.state][1]) if flip else (self.x+self.hurt_box[self.state][0],self.y+self.hurt_box[self.state][1])
+        hurtbox_max=(hurtbox_min[0]+self.hurt_box[self.state][2],hurtbox_min[1]+self.hurt_box[self.state][3])
+        if(hurtbox_min[0]>max[0] or 
+           hurtbox_min[1]>max[1] or 
+           hurtbox_max[0]<min[0] or 
+           hurtbox_max[1]<min[1] ):
+            return
+        else:
+            print('hurt')
+        
+
     def get_sprite(self) -> Surface:
         match self.state:
             case State.IDLE:
@@ -115,14 +176,20 @@ class Player(SpriteSheet):
                 self.current_sprites = self.move_right_sprites
             case State.MOVE_LEFT:
                 self.current_sprites = self.move_left_sprites
-
+            case State.ATTACK:
+                self.current_sprites = self.attack_sprites
+        
         if self.index >= len(self.current_sprites):
+            self.action = False
+            # if self.state != State.IDLE:
+            #     self.state = State .IDLE
             self.index = 0
+        else:    
 
-        self.current_num_frames += 1
-        if self.current_num_frames >= self.max_num_frames:
-            self.current_num_frames = 0
-            self.index = (self.index + 1) % len(self.current_sprites)
+            self.current_num_frames += 1
+            if self.current_num_frames >= self.max_num_frames:
+                self.current_num_frames = 0
+                self.index = (self.index + 1) % len(self.current_sprites)
 
         if self.flip:
             return pg.transform.flip(self.current_sprites[self.index], True, False)
@@ -132,6 +199,8 @@ class Player(SpriteSheet):
         return self.x, self.y
 
     def handle_input(self):
+        # if self.action:
+            # return
         key_pressed = pg.key.get_pressed()
         if key_pressed[pg.K_RIGHT] and (key_pressed[pg.K_LSHIFT] or key_pressed[pg.K_RSHIFT]):
             self.flip = False
@@ -147,6 +216,9 @@ class Player(SpriteSheet):
             self.x -= self.velocity
             if self.x < 0:
                 self.x = 0
+        elif key_pressed[pg.K_a]:
+            self.state = State.ATTACK
+            self.action = True
         else:
             self.state = State.IDLE
 
@@ -173,6 +245,7 @@ class GameManager:
         # main loop
         while not self.game_over:
             # get single input
+            self.players[1-self.player_idx].get_hit(self.players[self.player_idx])
             self.players[self.player_idx].handle_input()
 
             for event in pg.event.get():
@@ -184,8 +257,8 @@ class GameManager:
             if self.timer <= 0:
                 self.game_over = True
 
-            self.clock.tick(self.fps)
             self.update()
+            self.clock.tick(self.fps)
 
         pg.quit()
 
@@ -194,10 +267,46 @@ class GameManager:
             pg.transform.scale(self.bg_sprite.get_sprite(), (self.screen_width, self.screen_height)),
             (0, 0),
         )
+        if self.players[self.player_idx].state==State.ATTACK:
+            if self.players[self.player_idx].flip!=True:
+                pg.draw.rect(self.screen,(255,0,0),pg.Rect(
+                    self.players[self.player_idx].x+self.players[self.player_idx].hit_box[0],
+                    self.players[self.player_idx].y+self.players[self.player_idx].hit_box[1],
+                    self.players[self.player_idx].hit_box[2],
+                    self.players[self.player_idx].hit_box[3]),3)
+            else:
+                pg.draw.rect(self.screen,(255,0,0),pg.Rect(
+                    self.players[self.player_idx].x+self.players[self.player_idx].hit_box[0]-self.players[self.player_idx].w,
+                    self.players[self.player_idx].y+self.players[self.player_idx].hit_box[1],
+                    self.players[self.player_idx].hit_box[2],
+                    self.players[self.player_idx].hit_box[3]),3)
+        if self.players[self.player_idx].flip and self.players[self.player_idx].state==State.ATTACK and self.players[self.player_idx].index==0:
+            pg.draw.rect(self.screen,(0,0,255),pg.Rect(
+                self.players[self.player_idx].x+15*2.5+self.players[self.player_idx].hit_box[2],
+                self.players[self.player_idx].y+20*2.5,
+                40*2.5,
+                80*2.5),3)
+        else:
+            pg.draw.rect(self.screen,(0,0,255),pg.Rect(
+                self.players[self.player_idx].x+15*2.5,
+                self.players[self.player_idx].y+20*2.5,
+                40*2.5,
+                80*2.5),3)
+        pg.draw.rect(self.screen,(0,0,255),pg.Rect(
+            self.players[1-self.player_idx].x+15*2.5,
+            self.players[1-self.player_idx].y+20*2.5,
+            40*2.5,
+            80*2.5),3)
+        x,y=self.players[self.player_idx].get_coord()
+        # x = x+ 
         self.screen.blit(
             self.players[self.player_idx].get_sprite(),
             self.players[self.player_idx].get_coord(),
         )
+        
+        
+        
+        
         self.screen.blit(
             self.players[1 - self.player_idx].get_sprite(),
             self.players[1 - self.player_idx].get_coord(),
