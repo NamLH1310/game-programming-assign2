@@ -1,5 +1,8 @@
 from abc import ABC, abstractmethod
+from audioop import add
 from enum import Enum
+from re import S
+from tkinter import Y
 from turtle import Screen
 from typing import Tuple
 
@@ -67,7 +70,10 @@ class Player(SpriteSheet):
         self.velocity = 4
         self.flip = flip
         self.action = False
-        self.hurt_box:dict[Tuple]={State.ATTACK:(70,110),State.GUARD:(65,110),State.JUMP:(65,65)}
+        self.hurt_box:dict[State,Tuple]={State.ATTACK:(15*scaler,20*scaler,40*scaler,80*scaler),
+                                   State.GUARD:(15*scaler,20*scaler,40*scaler,80*scaler),
+                                   State.JUMP:(15*scaler,20*scaler,40*scaler,80*scaler),
+                                   State.IDLE:(15*scaler,20*scaler,40*scaler,80*scaler)}
         self.hit_box: Tuple = (70*scaler,20*scaler,50*scaler,10*scaler)
 
         self.idle_sprites: list[Surface] = [
@@ -90,9 +96,9 @@ class Player(SpriteSheet):
         ]
         
         self.attack_sprites: list[Surface] = [
-            self.sprite.subsurface(pg.Rect(0, 460, 70, 110)),
-            self.sprite.subsurface(pg.Rect(80, 460, 70, 110)),
             self.sprite.subsurface(pg.Rect(160, 460, 125, 110)),
+            self.sprite.subsurface(pg.Rect(80, 460, 70, 110)),
+            self.sprite.subsurface(pg.Rect(0, 460, 70, 110)),
         ]
          # TODO add
         self.jump_sprite: list[Surface]= [
@@ -143,9 +149,20 @@ class Player(SpriteSheet):
         
         flip=opp.flip
         
-        min=(x-hitbox[0]+70-hitbox[2],y+hitbox[1]) if flip else (x+hitbox[0],y+hitbox[1]) 
-        max=(min[0]+hitbox[2],min[1]+hitbox[3])       
-        if(self.x+10>max[0] or self.y+10>max[1] or self.x+10+50<min[0] or self.y+100+10<min[1] ):
+        addon=0
+        
+        if self.state==State.ATTACK:
+            if self.index==0:
+               addon= self.hit_box[2]
+        
+        min=(x+hitbox[0]-opp.w,y+hitbox[1]) if flip else (x+hitbox[0],y+hitbox[1]) 
+        max=(min[0]+hitbox[2],min[1]+hitbox[3])  
+        hurtbox_min=(self.x+self.hurt_box[self.state][0]+addon,self.y+self.hurt_box[self.state][1]) if flip else (self.x+self.hurt_box[self.state][0],self.y+self.hurt_box[self.state][1])
+        hurtbox_max=(hurtbox_min[0]+self.hurt_box[self.state][2],hurtbox_min[1]+self.hurt_box[self.state][3])
+        if(hurtbox_min[0]>max[0] or 
+           hurtbox_min[1]>max[1] or 
+           hurtbox_max[0]<min[0] or 
+           hurtbox_max[1]<min[1] ):
             return
         else:
             print('hurt')
@@ -250,22 +267,38 @@ class GameManager:
             pg.transform.scale(self.bg_sprite.get_sprite(), (self.screen_width, self.screen_height)),
             (0, 0),
         )
-        pg.draw.rect(self.screen,(255,0,0),pg.Rect(
-            self.players[self.player_idx].x+self.players[self.player_idx].hit_box[0],
-            self.players[self.player_idx].y+self.players[self.player_idx].hit_box[1],
-            self.players[self.player_idx].hit_box[2],
-            self.players[self.player_idx].hit_box[3]),3)
+        if self.players[self.player_idx].state==State.ATTACK:
+            if self.players[self.player_idx].flip!=True:
+                pg.draw.rect(self.screen,(255,0,0),pg.Rect(
+                    self.players[self.player_idx].x+self.players[self.player_idx].hit_box[0],
+                    self.players[self.player_idx].y+self.players[self.player_idx].hit_box[1],
+                    self.players[self.player_idx].hit_box[2],
+                    self.players[self.player_idx].hit_box[3]),3)
+            else:
+                pg.draw.rect(self.screen,(255,0,0),pg.Rect(
+                    self.players[self.player_idx].x+self.players[self.player_idx].hit_box[0]-self.players[self.player_idx].w,
+                    self.players[self.player_idx].y+self.players[self.player_idx].hit_box[1],
+                    self.players[self.player_idx].hit_box[2],
+                    self.players[self.player_idx].hit_box[3]),3)
+        if self.players[self.player_idx].flip and self.players[self.player_idx].state==State.ATTACK and self.players[self.player_idx].index==0:
+            pg.draw.rect(self.screen,(0,0,255),pg.Rect(
+                self.players[self.player_idx].x+15*2.5+self.players[self.player_idx].hit_box[2],
+                self.players[self.player_idx].y+20*2.5,
+                40*2.5,
+                80*2.5),3)
+        else:
+            pg.draw.rect(self.screen,(0,0,255),pg.Rect(
+                self.players[self.player_idx].x+15*2.5,
+                self.players[self.player_idx].y+20*2.5,
+                40*2.5,
+                80*2.5),3)
         pg.draw.rect(self.screen,(0,0,255),pg.Rect(
-            self.players[self.player_idx].x+10*2.5,
-            self.players[self.player_idx].y+10*2.5,
-            50*2.5,
-            100*2.5),3)
-        pg.draw.rect(self.screen,(0,0,255),pg.Rect(
-            self.players[1-self.player_idx].x+10*2.5,
-            self.players[1-self.player_idx].y+10*2.5,
-            50*2.5,
-            100*2.5),3)
-        
+            self.players[1-self.player_idx].x+15*2.5,
+            self.players[1-self.player_idx].y+20*2.5,
+            40*2.5,
+            80*2.5),3)
+        x,y=self.players[self.player_idx].get_coord()
+        # x = x+ 
         self.screen.blit(
             self.players[self.player_idx].get_sprite(),
             self.players[self.player_idx].get_coord(),
