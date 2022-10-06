@@ -108,7 +108,7 @@ class Player(SpriteSheet):
         ]
 
         self.frame_idx_hit_box: dict[State, list[int]] = {
-            State.ATTACK: [2, 8, 9, 12],
+            State.ATTACK: [2, 9, 12],
             State.KICK: [2, 5],
         }
 
@@ -203,40 +203,18 @@ class Player(SpriteSheet):
             for sprite in sprites
         ]
 
-    # def get_hit(self, opp):
-    #     """
-    #     :param opp:
-    #     :type opp: Player
-    #     :return:
-    #     """
-    #     if (opp.state != State.ATTACK) or self.state == State.GUARD:
-    #         return
-    #
-    #     x, y = opp.get_coord()
-    #
-    #     hit_box = opp.hit_box
-    #
-    #     flip = opp.direction
-    #
-    #     addon = 0
-    #
-    #     if self.state == State.ATTACK:
-    #         if self.index == 0:
-    #             addon = self.hit_box[2]
-    #
-    #     min = (x + hit_box[0] - opp.w, y + hit_box[1]) if flip else (x + hit_box[0], y + hit_box[1])
-    #     max = (min[0] + hit_box[2], min[1] + hit_box[3])
-    #     hurt_box_min = (
-    #         self.x + self.hurt_box[self.state][0] + addon, self.y + self.hurt_box[self.state][1]) if flip else (
-    #         self.x + self.hurt_box[self.state][0], self.y + self.hurt_box[self.state][1])
-    #     hurt_box_max = (hurt_box_min[0] + self.hurt_box[self.state][2], hurt_box_min[1] + self.hurt_box[self.state][3])
-    #     if (hurt_box_min[0] > max[0] or
-    #             hurt_box_min[1] > max[1] or
-    #             hurt_box_max[0] < min[0] or
-    #             hurt_box_max[1] < min[1]):
-    #         return
-    #     else:
-    #         print('hurt')
+    def get_hit(self, opponent):
+        """
+        :param opponent:
+        :type opponent: Player
+        :return:
+        """
+        if not opponent.get_hit_box():
+            return
+        for hit_box in opponent.get_hit_box():
+            if hit_box.colliderect(self.get_hurt_box()) and self.current_num_frames == 0:
+                print('ittai', opponent.index)
+                break
 
     def get_sprite(self) -> Surface:
         match self.state:
@@ -350,14 +328,127 @@ class Player(SpriteSheet):
         h = self.current_sprites[new_idx].get_height()
         d = self.current_sprites[new_idx].get_width() - self.idle_sprites[0].get_width()
         if self.direction == Direction.LEFT and d > 0:
-            return pg.Rect(self.x - d, self.ground_y - h, w - 50, h - 30).move(25, 25)
-        return pg.Rect(self.x, self.ground_y - h, w - 50, h - 30).move(25, 25)
+            return pg.Rect(self.x - int(d * 0.4), self.ground_y - h, int(w * 0.6), h - 25).move(0, 25)
+        return pg.Rect(self.x, self.ground_y - h, int(w * 0.6), h - 25).move(30, 25)
 
-    def get_hit_box(self) -> pg.Rect | None:
-        if self.state in (State.ATTACK, State.KICK) and self.index in self.frame_idx_hit_box[self.state]:
-            return self.get_hurt_box()
+    def get_hit_box(self) -> list[pg.Rect]:
+        new_idx = self.index % len(self.current_sprites)
+        h = self.current_sprites[new_idx].get_height()
+        match self.state:
+            case State.ATTACK:
+                match self.index:
+                    case 2:
+                        offset_x = 180
+                        if self.direction == Direction.LEFT:
+                            return [
+                                pg
+                                .Rect(-140, 40, self.current_sprites[2].get_width() - offset_x, 25)
+                                .move(self.x, self.ground_y - h)
+                            ]
+                        return [
+                            pg
+                            .Rect(offset_x, 40, self.current_sprites[2].get_width() - offset_x, 25)
+                            .move(self.x, self.ground_y - h)
+                        ]
+                    case 9:
+                        offset_xs = [
+                            190,
+                            205,
+                            230,
+                        ]
+                        if self.direction == Direction.LEFT:
+                            return [
+                                pg
+                                .Rect(-55, 30, self.current_sprites[8].get_width() - offset_xs[-3] - 50, 40)
+                                .move(self.x, self.ground_y - h),
+                                pg
+                                .Rect(-70, 70, self.current_sprites[8].get_width() - offset_xs[-2] - 20, 40)
+                                .move(self.x, self.ground_y - h),
+                                pg
+                                .Rect(-95, 110, self.current_sprites[9].get_width() - offset_xs[-1] - 10, 40)
+                                .move(self.x, self.ground_y - h),
+                            ]
+                        return [
+                            pg
+                            .Rect(offset_xs[-3], 30, self.current_sprites[8].get_width() - offset_xs[-3] - 50, 40)
+                            .move(self.x, self.ground_y - h),
+                            pg
+                            .Rect(offset_xs[-2], 70, self.current_sprites[8].get_width() - offset_xs[-2] - 20, 40)
+                            .move(self.x, self.ground_y - h),
+                            pg
+                            .Rect(offset_xs[-1], 110, self.current_sprites[9].get_width() - offset_xs[-1] - 10, 40)
+                            .move(self.x, self.ground_y - h)
+                        ]
+                    case 12:
+                        offset_x = 160
+                        if self.direction == Direction.LEFT:
+                            return [
+                                pg
+                                .Rect(-30, 0, self.current_sprites[12].get_width() - offset_x - 5, 85)
+                                .move(self.x, self.ground_y - h)
+                            ]
+                        return [
+                            pg
+                            .Rect(offset_x, 0, self.current_sprites[12].get_width() - offset_x - 5, 85)
+                            .move(self.x, self.ground_y - h)
+                        ]
+            case State.KICK:
+                match self.index:
+                    case 2:
+                        w = self.current_sprites[2].get_width()
+                        offset_xs = [
+                            150,
+                            200,
+                            230,
+                        ]
+                        if self.direction == Direction.LEFT:
+                            return [
+                                pg
+                                .Rect(-20, 50, offset_xs[-2] - offset_xs[-3], 40)
+                                .move(self.x, self.ground_y - h),
+                                pg
+                                .Rect(-50, 30, offset_xs[-1] - offset_xs[-2], 40)
+                                .move(self.x, self.ground_y - h),
+                                pg
+                                .Rect(-120, 10, w - offset_xs[-1], 30)
+                                .move(self.x, self.ground_y - h),
+                            ]
+                        return [
+                            pg
+                            .Rect(offset_xs[-3], 50, offset_xs[-2] - offset_xs[-3], 40)
+                            .move(self.x, self.ground_y - h),
+                            pg
+                            .Rect(offset_xs[-2], 30, offset_xs[-1] - offset_xs[-2], 40)
+                            .move(self.x, self.ground_y - h),
+                            pg
+                            .Rect(offset_xs[-1], 10, w - offset_xs[-1], 30)
+                            .move(self.x, self.ground_y - h),
+                        ]
+                    case 5:
+                        w = self.current_sprites[5].get_width()
+                        offset_xs = [
+                            120,
+                            150,
+                        ]
+                        if self.direction == Direction.LEFT:
+                            return [
+                                pg
+                                .Rect(0, 110, w - offset_xs[-2] - 50, 30)
+                                .move(self.x, self.ground_y - h),
+                                pg
+                                .Rect(-40, 140, w - offset_xs[-1] - 10, 30)
+                                .move(self.x, self.ground_y - h),
+                            ]
+                        return [
+                            pg
+                            .Rect(offset_xs[-2], 110, w - offset_xs[-2] - 50, 30)
+                            .move(self.x, self.ground_y - h),
+                            pg
+                            .Rect(offset_xs[-1], 140, w - offset_xs[-1] - 10, 30)
+                            .move(self.x, self.ground_y - h),
+                        ]
 
-        return None
+        return []
 
 
 class GameManager:
@@ -382,7 +473,7 @@ class GameManager:
         # main loop
         while not self.game_over:
             # get single input
-            # self.players[1 - self.player_idx].get_hit(self.players[self.player_idx])
+            self.players[1 - self.player_idx].get_hit(self.players[self.player_idx])
             self.game_over = self.players[self.player_idx].handle_input()
 
             self.timer -= self.delta_t
@@ -415,7 +506,8 @@ class GameManager:
                     pg.draw.rect(self.screen, BLUE, hurt_box, 3)
                 hit_box = player.get_hit_box()
                 if hit_box:
-                    pg.draw.rect(self.screen, RED, hit_box, 3)
+                    for hb in hit_box:
+                        pg.draw.rect(self.screen, RED, hb, 3)
 
         pg.display.update()
 
