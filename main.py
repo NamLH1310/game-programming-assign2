@@ -9,6 +9,7 @@ SOFT_GREEN = (186, 254, 202)
 BLUE = (0, 0, 248)
 RED = (255, 0, 0)
 
+
 log.basicConfig(level=log.DEBUG)
 pg.init()
 
@@ -73,16 +74,19 @@ class Player(SpriteSheet):
         self.sprite = pg.image.load(path).convert()
         self.state = State.IDLE
         self.prev_state = self.state
-        self.velocity = 4
+        self. velocity = 4
         self.direction = direction
         self.is_move_right = True
-        self.ground_y = y
+        self.ground_y: float = y
         self.hurt_box: dict[State, tuple[int, ...]] = {
             State.ATTACK: tuple(map(int, (15 * self.scaler, 20 * self.scaler, 40 * self.scaler, 80 * self.scaler))),
             State.GUARD: tuple(map(int, (15 * self.scaler, 20 * self.scaler, 40 * self.scaler, 80 * self.scaler))),
             State.JUMP: tuple(map(int, (15 * self.scaler, 20 * self.scaler, 40 * self.scaler, 80 * self.scaler))),
             State.IDLE: tuple(map(int, (15 * self.scaler, 20 * self.scaler, 40 * self.scaler, 80 * self.scaler))),
         }
+        self.jump_height=12
+        self.gravity=0.2
+        self.jump_speed = self.jump_height
         self.hit_box: tuple = (70 * self.scaler, 20 * self.scaler, 50 * self.scaler, 10 * self.scaler)
 
         self.idle_sprites: list[Surface] = [
@@ -183,7 +187,8 @@ class Player(SpriteSheet):
         self.guard_sprites = self.scale_sprite(self.guard_sprites, self.scaler)
         self.current_sprites = self.idle_sprites
 
-        self.y = y - self.idle_sprites[self.index].get_height()
+        self.cap_y=y-self.idle_sprites[0].get_height()+20
+        self.y = y 
         self.x = x
         self.w = self.current_sprites[self.index].get_width()
         self.h = self.current_sprites[self.index].get_height()
@@ -238,6 +243,17 @@ class Player(SpriteSheet):
                     self.state = State.IDLE
                     self.current_sprites = self.idle_sprites
                     self.index = 0
+        
+        if self.state == State.JUMP:
+            self.ground_y-=self.jump_speed
+            self.jump_speed-=self.gravity
+            if self.jump_speed<-self.jump_height:
+                self.jump_speed=self.jump_height
+                self.current_num_frames += 1
+                self.state = State.IDLE
+                self.current_sprites = self.idle_sprites
+                self.index = 0
+            
 
         new_idx = self.index % len(self.current_sprites)
 
@@ -252,8 +268,8 @@ class Player(SpriteSheet):
         new_idx = self.index % len(self.current_sprites)
         d = self.current_sprites[new_idx].get_width() - self.idle_sprites[0].get_width()
         if self.direction == Direction.LEFT and d > 0:
-            return self.x - d, self.ground_y - self.current_sprites[new_idx].get_height()
-        return self.x, self.ground_y - self.current_sprites[new_idx].get_height()
+            return self.x - d,round (self.ground_y) - self.current_sprites[new_idx].get_height()
+        return self.x, round(self.ground_y) - self.current_sprites[new_idx].get_height()
 
     def handle_input(self) -> bool:
         key_pressed = pg.key.get_pressed()
