@@ -66,7 +66,7 @@ class BackgroundSprite(SpriteSheet):
 
 
 class Player(SpriteSheet):
-    def __init__(self, path: str, x: int, y: int, direction: Direction):
+    def __init__(self, path: str, x: int, y: int, max_health: int, direction: Direction):
         super().__init__()
         self.scaler = 2.5
         self.max_num_frames = 20
@@ -77,6 +77,7 @@ class Player(SpriteSheet):
         self.direction = direction
         self.is_move_right = True
         self.ground_y: float = y
+        self.health_bar = max_health
         self.hurt_box: dict[State, tuple[int, ...]] = {
             State.ATTACK: tuple(map(int, (15 * self.scaler, 20 * self.scaler, 40 * self.scaler, 80 * self.scaler))),
             State.GUARD: tuple(map(int, (15 * self.scaler, 20 * self.scaler, 40 * self.scaler, 80 * self.scaler))),
@@ -86,7 +87,6 @@ class Player(SpriteSheet):
         self.jump_height = 12
         self.gravity = 0.2
         self.jump_speed = self.jump_height
-        self.hit_box: tuple = (70 * self.scaler, 20 * self.scaler, 50 * self.scaler, 10 * self.scaler)
 
         self.idle_sprites: list[Surface] = [
             self.sprite.subsurface(pg.Rect(0, 10, 70, 95)),
@@ -199,6 +199,9 @@ class Player(SpriteSheet):
 
     def get_direction_idx(self):
         return 1 if self.direction == Direction.LEFT else 0
+    
+    def get_health_bar(self):
+        return self.health_bar
 
     @staticmethod
     def scale_sprite(sprites: list[Surface], scaler: float) -> list[Surface]:
@@ -217,6 +220,10 @@ class Player(SpriteSheet):
             return
         for hit_box in opponent.get_hit_box():
             if hit_box.colliderect(self.get_hurt_box()) and self.current_num_frames == 0:
+                match opponent.index:
+                    case _:
+                        self.health_bar -= 20
+                print(self.health_bar)
                 print('ittai', opponent.index)
                 break
 
@@ -478,9 +485,12 @@ class GameManager:
         self.delta_t = 1 / self.fps
         self.bg_sprite: SpriteSheet = BackgroundSprite(KEN_STAGE_PATHS)
         self.player_idx = 0
+        self.max_health = 500
+        self.font_time=pg.font.SysFont("comicsans", 80, True, True)
+        self.font_player=pg.font.SysFont("impact", 40, False, False)
         self.players: list[Player] = [
-            Player(RYU_SPRITES_PATH, 50, 620, Direction.RIGHT),
-            Player(RYU_SPRITES_PATH, self.screen_width - 230, 620, Direction.LEFT),
+            Player(RYU_SPRITES_PATH, 50, 620, self.max_health, Direction.RIGHT),
+            Player(RYU_SPRITES_PATH, self.screen_width - 230, 620, self.max_health, Direction.LEFT),
         ]
 
     def run(self):
@@ -498,6 +508,22 @@ class GameManager:
             self.clock.tick(self.fps)
 
         pg.quit()
+        
+    def draw_top_bar(self):
+        time_text = self.font_time.render(str(round(self.timer)), True, (0,0,0))
+        self.screen.blit(time_text,(550 + round(180 - time_text.get_width())/2, 50))
+        health_1 = self.players[0].get_health_bar()
+        health_2 = self.players[1].get_health_bar()
+        name_plate_1 = self.font_player.render('Player 1',False, (0,0,0))
+        name_plate_2 = self.font_player.render('Player 2',False, (0,0,0))
+        self.screen.blit(name_plate_1,(50, 30))
+        self.screen.blit(name_plate_2,(730, 30))
+        
+        pg.draw.rect(self.screen, (RED), (50, 50 + round(time_text.get_height()/2) -15, 500, 30))
+        pg.draw.rect(self.screen, (SOFT_GREEN), (50, 50 + round(time_text.get_height()/2) -15, 500 - round(500/self.max_health* (self.max_health-health_1)) if health_1>0 else 0, 30))
+        pg.draw.rect(self.screen, (RED), (730, 50 + round(time_text.get_height()/2) -15, 500, 30))
+        pg.draw.rect(self.screen, (SOFT_GREEN), (730, 50 + round(time_text.get_height()/2) -15, 500 - round(500/self.max_health* (self.max_health-health_2)) if health_2>0 else 0, 30))
+        
 
     def update(self):
         self.screen.blit(
@@ -512,6 +538,8 @@ class GameManager:
             self.players[1 - self.player_idx].get_sprite(),
             self.players[1 - self.player_idx].get_coord(),
         )
+        
+        self.draw_top_bar()
         if self.debug:
             # self.log()
             for player in self.players:
