@@ -199,7 +199,7 @@ class Player(SpriteSheet):
 
     def get_direction_idx(self):
         return 1 if self.direction == Direction.LEFT else 0
-    
+
     def get_health_bar(self):
         return self.health_bar
 
@@ -298,8 +298,12 @@ class Player(SpriteSheet):
 
         if key_pressed[pg.K_RIGHT] and (key_pressed[pg.K_LSHIFT] or key_pressed[pg.K_RSHIFT]):
             self.direction = Direction.RIGHT
+            self.state = State.IDLE
+            self.current_sprites = self.idle_sprites
         elif key_pressed[pg.K_LEFT] and (key_pressed[pg.K_LSHIFT] or key_pressed[pg.K_RSHIFT]):
             self.direction = Direction.LEFT
+            self.state = State.IDLE
+            self.current_sprites = self.idle_sprites
         elif key_pressed[pg.K_RIGHT]:
             index = self.get_direction_idx()
             self.update_sprite(self.move_sprites[index if self.is_move_right else 1 - index])
@@ -486,8 +490,8 @@ class GameManager:
         self.bg_sprite: SpriteSheet = BackgroundSprite(KEN_STAGE_PATHS)
         self.player_idx = 0
         self.max_health = 500
-        self.font_time=pg.font.SysFont("comicsans", 80, True, True)
-        self.font_player=pg.font.SysFont("impact", 40, False, False)
+        self.font_time = pg.font.SysFont("comicsans", 80, True, True)
+        self.font_player = pg.font.SysFont("impact", 40, False, False)
         self.players: list[Player] = [
             Player(RYU_SPRITES_PATH, 50, 620, self.max_health, Direction.RIGHT),
             Player(RYU_SPRITES_PATH, self.screen_width - 230, 620, self.max_health, Direction.LEFT),
@@ -498,6 +502,7 @@ class GameManager:
         while not self.game_over:
             # get single input
             self.players[1 - self.player_idx].get_hit(self.players[self.player_idx])
+            self.players[self.player_idx].get_hit(self.players[1 - self.player_idx])
             self.game_over = self.players[self.player_idx].handle_input()
 
             self.timer -= self.delta_t
@@ -508,22 +513,23 @@ class GameManager:
             self.clock.tick(self.fps)
 
         pg.quit()
-        
+
     def draw_top_bar(self):
-        time_text = self.font_time.render(str(round(self.timer)), True, (0,0,0))
-        self.screen.blit(time_text,(550 + round(180 - time_text.get_width())/2, 50))
+        time_text = self.font_time.render(str(round(self.timer)), True, (0, 0, 0))
+        self.screen.blit(time_text, (550 + round(180 - time_text.get_width()) / 2, 50))
         health_1 = self.players[0].get_health_bar()
         health_2 = self.players[1].get_health_bar()
-        name_plate_1 = self.font_player.render('Player 1',False, (0,0,0))
-        name_plate_2 = self.font_player.render('Player 2',False, (0,0,0))
-        self.screen.blit(name_plate_1,(50, 30))
-        self.screen.blit(name_plate_2,(730, 30))
-        
-        pg.draw.rect(self.screen, (RED), (50, 50 + round(time_text.get_height()/2) -15, 500, 30))
-        pg.draw.rect(self.screen, (SOFT_GREEN), (50, 50 + round(time_text.get_height()/2) -15, 500 - round(500/self.max_health* (self.max_health-health_1)) if health_1>0 else 0, 30))
-        pg.draw.rect(self.screen, (RED), (730, 50 + round(time_text.get_height()/2) -15, 500, 30))
-        pg.draw.rect(self.screen, (SOFT_GREEN), (730, 50 + round(time_text.get_height()/2) -15, 500 - round(500/self.max_health* (self.max_health-health_2)) if health_2>0 else 0, 30))
-        
+        name_plate_1 = self.font_player.render('Player 1', False, (0, 0, 0))
+        name_plate_2 = self.font_player.render('Player 2', False, (0, 0, 0))
+        self.screen.blit(name_plate_1, (50, 30))
+        self.screen.blit(name_plate_2, (730, 30))
+
+        pg.draw.rect(self.screen, RED, (50, 50 + round(time_text.get_height() / 2) - 15, 500, 30))
+        pg.draw.rect(self.screen, SOFT_GREEN, (50, 50 + round(time_text.get_height() / 2) - 15, 500 - round(
+            500 / self.max_health * (self.max_health - health_1)) if health_1 > 0 else 0, 30))
+        pg.draw.rect(self.screen, RED, (730, 50 + round(time_text.get_height() / 2) - 15, 500, 30))
+        pg.draw.rect(self.screen, SOFT_GREEN, (730, 50 + round(time_text.get_height() / 2) - 15, 500 - round(
+            500 / self.max_health * (self.max_health - health_2)) if health_2 > 0 else 0, 30))
 
     def update(self):
         self.screen.blit(
@@ -538,7 +544,7 @@ class GameManager:
             self.players[1 - self.player_idx].get_sprite(),
             self.players[1 - self.player_idx].get_coord(),
         )
-        
+
         self.draw_top_bar()
         if self.debug:
             # self.log()
