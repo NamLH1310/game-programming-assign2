@@ -528,7 +528,7 @@ class GameManager:
 
             self.timer -= self.delta_t if self.menu == False and len(self.winner) == 0 else 0
             if self.timer <= 0:
-                self.game_over = True
+                self.winner = "No"
 
             self.update()
             self.clock.tick(self.fps)
@@ -598,7 +598,7 @@ class GameManager:
         self.screen.fill((0,0,0))
         retry_text = self.font_menu.render("RETRY",True, (255,255,255))
         quit_text = self.font_menu.render("QUIT",True, (255,255,255))
-        winner_text =self.font_menu.render(self.winner + " WIN!",True,(255,255,255))
+        winner_text =self.font_menu.render((self.winner + " WIN!" if self.winner != "No" else "DRAW!!!"),True,(255,255,255))
         quit_rect=(quit_text.get_width(),quit_text.get_height())
         retry_rect=(retry_text.get_width(),retry_text.get_height())
         menu_mouse_pos = pg.mouse.get_pos()
