@@ -1,6 +1,7 @@
 import logging as log
 from abc import ABC, abstractmethod
 from enum import Enum
+from typing import Tuple
 
 import pygame as pg
 from pygame.surface import Surface
@@ -8,6 +9,7 @@ from pygame.surface import Surface
 SOFT_GREEN = (186, 254, 202)
 BLUE = (0, 0, 248)
 RED = (255, 0, 0)
+P2 = (127,255,0)
 
 log.basicConfig(level=log.DEBUG)
 pg.init()
@@ -66,8 +68,9 @@ class BackgroundSprite(SpriteSheet):
 
 
 class Player(SpriteSheet):
-    def __init__(self, path: str, x: int, y: int, max_health: int, direction: Direction):
+    def __init__(self, path: str, x: int, y: int, max_health: int, p2: bool, direction: Direction):
         super().__init__()
+        self.p2 = p2
         self.scaler = 2.5
         self.max_num_frames = 20
         self.sprite = pg.image.load(path).convert()
@@ -184,8 +187,15 @@ class Player(SpriteSheet):
         self.jump_sprites = self.scale_sprite(self.jump_sprites, self.scaler)
         self.kick_sprites = self.scale_sprite(self.kick_sprites, self.scaler)
         self.guard_sprites = self.scale_sprite(self.guard_sprites, self.scaler)
+        if self.p2:
+            self.idle_sprites = self.set_color_sprites(self.idle_sprites, P2)
+            self.attack_sprites = self.set_color_sprites(self.attack_sprites, P2)
+            self.move_sprites[0] = self.set_color_sprites(self.move_sprites[0], P2)
+            self.move_sprites[1] = self.set_color_sprites(self.move_sprites[1], P2)
+            self.jump_sprites = self.set_color_sprites(self.jump_sprites, P2)
+            self.kick_sprites = self.set_color_sprites(self.kick_sprites, P2)
+            self.guard_sprites = self.set_color_sprites(self.guard_sprites, P2)
         self.current_sprites = self.idle_sprites
-
         self.cap_y = y - self.idle_sprites[0].get_height() + 20
         self.y = y
         self.x = x
@@ -202,6 +212,13 @@ class Player(SpriteSheet):
 
     def get_health_bar(self):
         return self.health_bar
+    
+    @staticmethod
+    def set_color_sprites(sprites: list[Surface], color):
+        return [
+            change_color(sprite,color) for sprite in sprites 
+        ]
+
 
     @staticmethod
     def scale_sprite(sprites: list[Surface], scaler: float) -> list[Surface]:
@@ -490,11 +507,15 @@ class GameManager:
         self.bg_sprite: SpriteSheet = BackgroundSprite(KEN_STAGE_PATHS)
         self.player_idx = 0
         self.max_health = 500
+        self.menu = True
+        self.winner = ""
         self.font_time = pg.font.SysFont("comicsans", 80, True, True)
         self.font_player = pg.font.SysFont("impact", 40, False, False)
+        self.font_menu = pg.font.SysFont("consolas", 40, True, False)
+        self.font_option = pg.font.SysFont("consolas", 80, True, False)
         self.players: list[Player] = [
-            Player(RYU_SPRITES_PATH, 50, 620, self.max_health, Direction.RIGHT),
-            Player(RYU_SPRITES_PATH, self.screen_width - 230, 620, self.max_health, Direction.LEFT),
+            Player(RYU_SPRITES_PATH, 50, 620, self.max_health, False, Direction.RIGHT),
+            Player(RYU_SPRITES_PATH, self.screen_width - 230, 620, self.max_health, True, Direction.LEFT),
         ]
 
     def run(self):
@@ -505,7 +526,7 @@ class GameManager:
             self.players[self.player_idx].get_hit(self.players[1 - self.player_idx])
             self.game_over = self.players[self.player_idx].handle_input()
 
-            self.timer -= self.delta_t
+            self.timer -= self.delta_t if self.menu == False and len(self.winner) == 0 else 0
             if self.timer <= 0:
                 self.game_over = True
 
@@ -531,11 +552,75 @@ class GameManager:
         pg.draw.rect(self.screen, SOFT_GREEN, (730, 50 + round(time_text.get_height() / 2) - 15, 500 - round(
             500 / self.max_health * (self.max_health - health_2)) if health_2 > 0 else 0, 30))
 
+        if health_1 <=0:
+            self.winner = "PLAYER 2"
+        elif health_2 <=0:
+            self.winner = "PLAYER 1"
+        
+    def inner(self, point:Tuple[int,int],x0,x1,y0,y1) -> bool:
+        print(point)
+        if point[0]>x1 or point[0]<x0 or point[1]>y1 or point[1]<y0:
+            return False
+        return True
+
+    def draw_menu_screen(self):
+        if self.menu == False:
+            return
+        self.screen.fill((0,0,0))
+        menu_mouse_pos = pg.mouse.get_pos()
+        menu_text = self.font_menu.render("MENU",True, (255,255,255))
+        quit_text = self.font_menu.render("QUIT",True, (255,255,255))
+        quit_rect=(quit_text.get_width(),quit_text.get_height())
+
+        player_1_button = self.font_option.render("PLAYER 1", True, (255,255,255))
+        player_2_button = self.font_option.render("PLAYER 2", True, (255,255,255))
+        
+        self.screen.blit(menu_text,(round((self.screen_width-menu_text.get_width())/2),70))
+        self.screen.blit(quit_text,(round((self.screen_width-menu_text.get_width())/2),self.screen_height/2+100))
+        
+        self.screen.blit(player_1_button,(200,self.screen_height/2-100))
+        self.screen.blit(player_2_button,(self.screen_width-200-player_2_button.get_width(),self.screen_height/2-100))
+        ev = pg.event.get()
+        for event in ev:
+            if event.type == pg.MOUSEBUTTONDOWN:
+                if self.inner(menu_mouse_pos,(self.screen_width-menu_text.get_width())/2,(self.screen_width-menu_text.get_width())/2+ quit_rect[0],self.screen_height/2+100,self.screen_height/2+100+quit_rect[1] ):
+                    self.game_over = True
+                elif self.inner(menu_mouse_pos,200,200+player_1_button.get_width(),self.screen_height/2-100,self.screen_height/2-100+player_1_button.get_height() ):
+                    self.player_idx = 0
+                    self.menu = False
+                elif self.inner(menu_mouse_pos,self.screen_width-200-player_2_button.get_width(),self.screen_width-200,self.screen_height/2-100,self.screen_height/2-100+player_2_button.get_height() ):
+                    self.player_idx = 1
+                    self.menu = False
+    
+    def draw_game_over(self):
+        if len(self.winner)==0:
+            return
+        self.screen.fill((0,0,0))
+        retry_text = self.font_menu.render("RETRY",True, (255,255,255))
+        quit_text = self.font_menu.render("QUIT",True, (255,255,255))
+        winner_text =self.font_menu.render(self.winner + " WIN!",True,(255,255,255))
+        quit_rect=(quit_text.get_width(),quit_text.get_height())
+        retry_rect=(retry_text.get_width(),retry_text.get_height())
+        menu_mouse_pos = pg.mouse.get_pos()
+
+        self.screen.blit(retry_text,(round((self.screen_width-retry_text.get_width())/2),self.screen_height/2-round(retry_text.get_height()/2)+100))
+        self.screen.blit(winner_text,(round((self.screen_width-winner_text.get_width())/2),self.screen_height/2-round(winner_text.get_height()/2)-100))    
+        self.screen.blit(quit_text,(round((self.screen_width-quit_text.get_width())/2),self.screen_height/2-round(quit_text.get_height()/2)+200))
+        ev = pg.event.get()
+        for event in ev:
+            if event.type == pg.MOUSEBUTTONDOWN:
+                if self.inner(menu_mouse_pos,(self.screen_width-quit_text.get_width())/2,(self.screen_width-quit_text.get_width())/2+ quit_rect[0],self.screen_height/2-round(quit_text.get_height()/2)+200,self.screen_height/2-round(quit_text.get_height()/2)+200+quit_rect[1] ):
+                    self.game_over = True
+                elif self.inner(menu_mouse_pos,round((self.screen_width-retry_text.get_width())/2),round((self.screen_width-retry_text.get_width())/2)+retry_rect[0],self.screen_height/2-round(retry_text.get_height()/2)+100,self.screen_height/2-round(retry_text.get_height()/2)+100+retry_rect[1] ):
+                    print('Reset cai nay m lam di')
     def update(self):
         self.screen.blit(
             pg.transform.scale(self.bg_sprite.get_sprite(), (self.screen_width, self.screen_height)),
             (0, 0),
         )
+        
+        self.draw_top_bar()
+        
         self.screen.blit(
             self.players[self.player_idx].get_sprite(),
             self.players[self.player_idx].get_coord(),
@@ -545,7 +630,6 @@ class GameManager:
             self.players[1 - self.player_idx].get_coord(),
         )
 
-        self.draw_top_bar()
         if self.debug:
             # self.log()
             for player in self.players:
@@ -556,6 +640,9 @@ class GameManager:
                 if hit_box:
                     for hb in hit_box:
                         pg.draw.rect(self.screen, RED, hb, 3)
+                        
+        self.draw_menu_screen()
+        self.draw_game_over()
 
         pg.display.update()
 
@@ -566,6 +653,16 @@ class GameManager:
 
 def main():
     GameManager(True).run()
+    
+def change_color(image: Surface, color):
+        colouredImage = pg.Surface(image.get_size())
+        colouredImage.fill(color)
+    
+        finalImage = image.copy()
+        finalImage.blit(colouredImage, (0, 0), special_flags = pg.BLEND_MULT)
+        finalImage.set_colorkey((0,0,0), pg.RLEACCEL)
+        
+        return finalImage
 
 
 if __name__ == '__main__':
