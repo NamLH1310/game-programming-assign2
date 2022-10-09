@@ -241,6 +241,12 @@ class Player(SpriteSheet):
                 match opponent.index:
                     case _:
                         self.health_bar -= 20
+                        self.prev_x = self.x
+                        self.x += 100 if self.direction == Direction.LEFT else -100
+                        if self.x > 1280 - self.w :
+                            self.x =1280 - self.w
+                        elif self.x<0:
+                            self.x = 0
                 print(self.health_bar)
                 print('ittai', opponent.index)
                 break
@@ -633,7 +639,7 @@ class GameManager:
 
                 self.ai_controller.update_AI_state(self.players[1-self.player_idx], self.players[self.player_idx])
 
-                self.timer -= self.delta_t if self.menu == False and len(self.winner) == 0 else 0
+                self.timer -= self.delta_t if len(self.winner) == 0 else 0
                 if self.timer <= 0:
                     self.winner = "No"
 
