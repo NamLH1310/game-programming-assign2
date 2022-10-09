@@ -530,12 +530,9 @@ class AI_Controller:
                 ai.state = State.MOVE
                 ai.is_move_right = False
                 ai.x -= int(ai.velocity / 2)
-
                 if ai.x <= human.x :
                     ai.x = human.x
                 ai.state = State.IDLE
-
-                # When AI stays idle and in distance, it starts attacking
             else:
                 if self.random.randint(0,143) == 0:
                     self.lock_animation = len(ai.attack_sprites) * self.max_num_frame
@@ -552,7 +549,6 @@ class AI_Controller:
             if self.lock_animation < 0:
                 ai.state = State.IDLE
             self.lock_animation -= 1
-        # When human player starts to attack and within distance, ai has a 20% chance to guard
         elif ai.state == State.GUARD:
             if self.lock_animation < 0:
                 ai.state = State.IDLE
