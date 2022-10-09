@@ -2,7 +2,6 @@ import logging as log
 from abc import ABC, abstractmethod
 from enum import Enum
 import random
-from typing import Tuple
 
 import pygame as pg
 from pygame.surface import Surface
@@ -10,7 +9,7 @@ from pygame.surface import Surface
 SOFT_GREEN = (186, 254, 202)
 BLUE = (0, 0, 248)
 RED = (255, 0, 0)
-P2 = (127,255,0)
+P2 = (127, 255, 0)
 
 log.basicConfig(level=log.DEBUG)
 pg.init()
@@ -24,6 +23,19 @@ KEN_STAGE_PATHS = [
 ]
 
 RYU_SPRITES_PATH = 'assets/Ryu.png'
+
+
+def scale_sprite(sprites: list[Surface], scaler: float) -> list[Surface]:
+    return [
+        pg.transform.scale(sprite, (sprite.get_width() * scaler, sprite.get_height() * scaler))
+        for sprite in sprites
+    ]
+
+
+def set_color_sprites(sprites: list[Surface], color):
+    return [
+        change_color(sprite, color) for sprite in sprites
+    ]
 
 
 class Direction(Enum):
@@ -41,7 +53,7 @@ class State(Enum):
     JUMP = 'jump'
     MOVE = 'move'
     KICK = 'kick'
-    KICK2 = 'kick2'
+    SHOOT_FIREBALL = 'fireball'
 
 
 class SpriteSheet(ABC):
@@ -68,6 +80,81 @@ class BackgroundSprite(SpriteSheet):
         return self.bg_sprites[self.index]
 
 
+class FireBall(SpriteSheet):
+    def __init__(self, player):
+        """
+        :type player: Player
+        """
+        super().__init__()
+        self.direction = player.direction
+        self.x = player.x
+        if self.direction == Direction.LEFT:
+            self.x -= 120
+        else:
+            self.x += player.w - 50
+        self.y = player.y - 230
+        self.velocity = 5
+        self.sprite = player.sprite
+        self.sprites: list[Surface] = [
+            self.sprite.subsurface(pg.Rect(580, 1425, 45, 65)),
+            self.sprite.subsurface(pg.Rect(640, 1425, 50, 65)),
+            self.sprite.subsurface(pg.Rect(695, 1425, 60, 65)),
+            self.sprite.subsurface(pg.Rect(760, 1425, 60, 65)),
+        ]
+        self.index = 0
+
+        for sprite in self.sprites:
+            sprite.set_colorkey(BLUE, pg.RLEACCEL)
+
+        self.sprites = scale_sprite(self.sprites, 2.5)
+
+    def get_hit_box(self) -> pg.Rect:
+        return pg.Rect(self.x, self.y, self.sprites[self.index].get_width(),
+                       self.sprites[self.index].get_height() * 0.6) \
+            .move(0, 30)
+
+    def collide(self, other_obj) -> bool:
+        """
+        :type other_obj: FireBall | Player | None
+        :return: bool
+        """
+        if not other_obj and self.x >= 1280 or self.x <= 0:
+            return True
+        if type(other_obj) is FireBall:
+            return True
+        elif type(other_obj) is Player:
+            if self.get_hit_box().colliderect(other_obj.get_hurt_box()):
+                other_obj.health_bar -= 50
+                return True
+        return False
+
+    def get_coord(self) -> tuple[int, int]:
+        if self.direction == Direction.RIGHT:
+            self.x += self.velocity
+        else:
+            self.x -= self.velocity
+        return self.x, self.y
+
+    def get_sprite(self) -> Surface:
+        if self.direction == Direction.LEFT:
+            pass
+        self.current_num_frames += 1
+
+        n = len(self.sprites)
+        if self.current_num_frames >= self.max_num_frames and self.index < len(self.sprites):
+            self.current_num_frames = 0
+            if self.index == n - 1:
+                self.index = n - 2
+            elif self.index == n - 2:
+                self.index = n - 1
+            else:
+                self.index += 1
+
+        if self.direction == Direction.LEFT:
+            return pg.transform.flip(self.sprites[self.index], True, False)
+        return self.sprites[self.index]
+
+
 class Player(SpriteSheet):
     def __init__(self, path: str, x: int, y: int, max_health: int, p2: bool, direction: Direction):
         super().__init__()
@@ -76,6 +163,8 @@ class Player(SpriteSheet):
         self.max_num_frames = 20
         self.sprite = pg.image.load(path).convert()
         self.state = State.IDLE
+        self.fireballs = set[FireBall]()
+        self.removed_fireballs: list[FireBall] = []
         self.prev_state = self.state
         self.velocity = 4
         self.direction = direction
@@ -117,15 +206,6 @@ class Player(SpriteSheet):
         self.frame_idx_hit_box: dict[State, list[int]] = {
             State.ATTACK: [2, 9, 12],
             State.KICK: [2, 5],
-        }
-
-        self.hit_box: dict[State, list[pg.Rect]] = {
-            State.ATTACK: [
-
-            ],
-            State.KICK: [
-
-            ],
         }
 
         self.attack_sprites: list[Surface] = [
@@ -174,28 +254,37 @@ class Player(SpriteSheet):
 
         ]
 
+        self.shoot_fireball_sprites: list[Surface] = [
+            self.sprite.subsurface(pg.Rect(15, 1415, 80, 95)),
+            self.sprite.subsurface(pg.Rect(110, 1415, 85, 95)),
+            self.sprite.subsurface(pg.Rect(205, 1425, 95, 85)),
+            self.sprite.subsurface(pg.Rect(310, 1430, 110, 80)),
+            self.sprite.subsurface(pg.Rect(430, 1430, 130, 80)),
+        ]
+
         for sprite in \
                 self.idle_sprites + self.attack_sprites + \
                 self.move_sprites[0] + self.move_sprites[1] + \
                 self.jump_sprites + self.kick_sprites + \
-                self.guard_sprites:
+                self.guard_sprites + self.shoot_fireball_sprites:
             sprite.set_colorkey(BLUE, pg.RLEACCEL)
 
-        self.idle_sprites = self.scale_sprite(self.idle_sprites, self.scaler)
-        self.attack_sprites = self.scale_sprite(self.attack_sprites, self.scaler)
-        self.move_sprites[0] = self.scale_sprite(self.move_sprites[0], self.scaler)
-        self.move_sprites[1] = self.scale_sprite(self.move_sprites[1], self.scaler)
-        self.jump_sprites = self.scale_sprite(self.jump_sprites, self.scaler)
-        self.kick_sprites = self.scale_sprite(self.kick_sprites, self.scaler)
-        self.guard_sprites = self.scale_sprite(self.guard_sprites, self.scaler)
+        self.idle_sprites = scale_sprite(self.idle_sprites, self.scaler)
+        self.attack_sprites = scale_sprite(self.attack_sprites, self.scaler)
+        self.move_sprites[0] = scale_sprite(self.move_sprites[0], self.scaler)
+        self.move_sprites[1] = scale_sprite(self.move_sprites[1], self.scaler)
+        self.jump_sprites = scale_sprite(self.jump_sprites, self.scaler)
+        self.kick_sprites = scale_sprite(self.kick_sprites, self.scaler)
+        self.guard_sprites = scale_sprite(self.guard_sprites, self.scaler)
+        self.shoot_fireball_sprites = scale_sprite(self.shoot_fireball_sprites, self.scaler)
         if self.p2:
-            self.idle_sprites = self.set_color_sprites(self.idle_sprites, P2)
-            self.attack_sprites = self.set_color_sprites(self.attack_sprites, P2)
-            self.move_sprites[0] = self.set_color_sprites(self.move_sprites[0], P2)
-            self.move_sprites[1] = self.set_color_sprites(self.move_sprites[1], P2)
-            self.jump_sprites = self.set_color_sprites(self.jump_sprites, P2)
-            self.kick_sprites = self.set_color_sprites(self.kick_sprites, P2)
-            self.guard_sprites = self.set_color_sprites(self.guard_sprites, P2)
+            self.idle_sprites = set_color_sprites(self.idle_sprites, P2)
+            self.attack_sprites = set_color_sprites(self.attack_sprites, P2)
+            self.move_sprites[0] = set_color_sprites(self.move_sprites[0], P2)
+            self.move_sprites[1] = set_color_sprites(self.move_sprites[1], P2)
+            self.jump_sprites = set_color_sprites(self.jump_sprites, P2)
+            self.kick_sprites = set_color_sprites(self.kick_sprites, P2)
+            self.guard_sprites = set_color_sprites(self.guard_sprites, P2)
         self.current_sprites = self.idle_sprites
         self.cap_y = y - self.idle_sprites[0].get_height() + 20
         self.y = y
@@ -213,20 +302,6 @@ class Player(SpriteSheet):
 
     def get_health_bar(self):
         return self.health_bar
-    
-    @staticmethod
-    def set_color_sprites(sprites: list[Surface], color):
-        return [
-            change_color(sprite,color) for sprite in sprites 
-        ]
-
-
-    @staticmethod
-    def scale_sprite(sprites: list[Surface], scaler: float) -> list[Surface]:
-        return [
-            pg.transform.scale(sprite, (sprite.get_width() * scaler, sprite.get_height() * scaler))
-            for sprite in sprites
-        ]
 
     def get_hit(self, opponent):
         """
@@ -279,9 +354,16 @@ class Player(SpriteSheet):
                     self.current_num_frames = 0
                     self.index += 1
                 if self.index >= len(self.current_sprites):
+                    if self.state == State.SHOOT_FIREBALL:
+                        self.fireballs.add(FireBall(self))
                     self.state = State.IDLE
                     self.current_sprites = self.idle_sprites
                     self.index = 0
+
+        if self.removed_fireballs:
+            for fb in self.removed_fireballs:
+                self.fireballs.remove(fb)
+            self.removed_fireballs = []
 
         if self.state == State.JUMP:
             self.ground_y -= self.jump_speed
@@ -377,15 +459,17 @@ class Player(SpriteSheet):
                         self.update_sprite(self.kick_sprites)
                         self.state = State.KICK
                         self.index = 0
+                    case pg.K_f:
+                        self.update_sprite(self.shoot_fireball_sprites)
+                        self.state = State.SHOOT_FIREBALL
+                        self.index = 0
+
                     case _:
                         self.state = State.IDLE
             elif event.type == pg.QUIT:
                 return True
 
         return False
-
-    # def random_state(self) -> None:
-
 
     def get_hurt_box(self) -> pg.Rect | None:
         new_idx = self.index % len(self.current_sprites)
@@ -521,7 +605,7 @@ class AI_Controller:
         self.max_num_frame = max_num_frame
         self.random = random.SystemRandom()
 
-    
+
     def update_AI_state(self, ai : Player, human: Player) -> None:
 
         distance = ai.x - human.x
@@ -575,7 +659,7 @@ class AI_Controller:
 
 class GameManager:
     def __init__(self, debug=False):
-        
+
         self.debug = debug
         self.screen_width = 1280
         self.screen_height = 720
@@ -623,7 +707,7 @@ class GameManager:
             Player(RYU_SPRITES_PATH, 50, 620, self.max_health, False, Direction.RIGHT),
             Player(RYU_SPRITES_PATH, self.screen_width - 230, 620, self.max_health, True, Direction.LEFT),
         ]
-        self.ai_controller = AI_Controller(self.fps)        
+        self.ai_controller = AI_Controller(self.fps)
 
 
     def run(self):
@@ -665,16 +749,14 @@ class GameManager:
         pg.draw.rect(self.screen, SOFT_GREEN, (730, 50 + round(time_text.get_height() / 2) - 15, 500 - round(
             500 / self.max_health * (self.max_health - health_2)) if health_2 > 0 else 0, 30))
 
-        if health_1 <=0:
+        if health_1 <= 0:
             self.winner = "PLAYER 2"
-        elif health_2 <=0:
+        elif health_2 <= 0:
             self.winner = "PLAYER 1"
-        
-    def inner(self, point:Tuple[int,int],x0,x1,y0,y1) -> bool:
-        print(point)
-        if point[0]>x1 or point[0]<x0 or point[1]>y1 or point[1]<y0:
-            return False
-        return True
+
+    @staticmethod
+    def inner(point: tuple[int, int], x0, x1, y0, y1) -> bool:
+        return not (point[0] > x1 or point[0] < x0 or point[1] > y1 or point[1] < y0)
 
     def draw_menu_screen(self):
         if self.menu == False:
@@ -726,7 +808,7 @@ class GameManager:
                     self.game_over = True
                 elif self.inner(menu_mouse_pos,round((self.screen_width-retry_text.get_width())/2),round((self.screen_width-retry_text.get_width())/2)+retry_rect[0],self.screen_height/2-round(retry_text.get_height()/2)+100,self.screen_height/2-round(retry_text.get_height()/2)+100+retry_rect[1] ):
                     self.reset()
-    
+
     def update(self):
         self.screen.blit(
             pg.transform.scale(self.bg_sprite.get_sprite(), (self.screen_width, self.screen_height)),
@@ -734,7 +816,17 @@ class GameManager:
         )
         
         self.draw_top_bar()
-        
+
+        for fb in self.players[self.player_idx].fireballs:
+            if fb.collide(None) or fb.collide(self.players[1 - self.player_idx]):
+                self.players[self.player_idx].removed_fireballs.append(fb)
+            self.screen.blit(fb.get_sprite(), fb.get_coord())
+
+        for fb in self.players[1 - self.player_idx].fireballs:
+            if fb.collide(None) or fb.collide(self.players[self.player_idx]):
+                self.players[1 - self.player_idx].removed_fireballs.append(fb)
+            self.screen.blit(fb.get_sprite(), fb.get_coord())
+
         self.screen.blit(
             self.players[self.player_idx].get_sprite(),
             self.players[self.player_idx].get_coord(),
@@ -754,7 +846,10 @@ class GameManager:
                 if hit_box:
                     for hb in hit_box:
                         pg.draw.rect(self.screen, RED, hb, 3)
-                        
+
+                for fb in player.fireballs:
+                    pg.draw.rect(self.screen, RED, fb.get_hit_box(), 3)
+
         self.draw_menu_screen()
         self.draw_game_over()
 
@@ -769,14 +864,14 @@ def main():
     GameManager(True).run()
     
 def change_color(image: Surface, color):
-        colouredImage = pg.Surface(image.get_size())
-        colouredImage.fill(color)
-    
-        finalImage = image.copy()
-        finalImage.blit(colouredImage, (0, 0), special_flags = pg.BLEND_MULT)
-        finalImage.set_colorkey((0,0,0), pg.RLEACCEL)
-        
-        return finalImage
+    coloured_image = pg.Surface(image.get_size())
+    coloured_image.fill(color)
+
+    final_image = image.copy()
+    final_image.blit(coloured_image, (0, 0), special_flags=pg.BLEND_MULT)
+    final_image.set_colorkey((0, 0, 0), pg.RLEACCEL)
+
+    return final_image
 
 
 if __name__ == '__main__':
