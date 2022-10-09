@@ -1,6 +1,7 @@
 import logging as log
 from abc import ABC, abstractmethod
 from enum import Enum
+import random
 from typing import Tuple
 
 import pygame as pg
@@ -335,6 +336,7 @@ class Player(SpriteSheet):
             self.update_sprite(self.move_sprites[index if self.is_move_right else 1 - index])
             self.state = State.MOVE
             self.is_move_right = True
+            self.direction = Direction.RIGHT
             self.x += self.velocity
             if self.x > 1280 - self.w:
                 self.x = 1280 - self.w
@@ -342,6 +344,7 @@ class Player(SpriteSheet):
             index = self.get_direction_idx()
             self.update_sprite(self.move_sprites[index if self.is_move_right else 1 - index])
             self.state = State.MOVE
+            self.direction = Direction.LEFT
             self.is_move_right = False
             self.x -= self.velocity
             if self.x < 0:
@@ -374,6 +377,9 @@ class Player(SpriteSheet):
                 return True
 
         return False
+
+    # def random_state(self) -> None:
+
 
     def get_hurt_box(self) -> pg.Rect | None:
         new_idx = self.index % len(self.current_sprites)
@@ -503,9 +509,67 @@ class Player(SpriteSheet):
 
         return []
 
+class AI_Controller:
+    def __init__(self, max_num_frame: int):
+        self.lock_animation = 0
+        self.max_num_frame = max_num_frame
+        self.random = random.SystemRandom()
+
+    
+    def update_AI_state(self, ai : Player, human: Player) -> None:
+
+        distance = ai.x - human.x
+
+        if ai.state == State.IDLE:
+            # In IDLE, it has the tendency to move towards the player
+            if distance < -100:
+                ai.direction = Direction.RIGHT
+                index = ai.get_direction_idx()
+                ai.update_sprite(ai.move_sprites[index if ai.is_move_right else 1 - index])
+                ai.state = State.MOVE
+                ai.is_move_right = True
+                ai.x += int(ai.velocity * 1/2)
+                if ai.x >= human.x:
+                    ai.x = human.x
+                elif ai.x >= 1280:
+                    ai.x = 1280
+                ai.state = State.IDLE
+            elif distance >= 100:
+                ai.direction = Direction.LEFT
+                index = ai.get_direction_idx()
+                ai.update_sprite(ai.move_sprites[index if ai.is_move_right else 1 - index])
+                ai.state = State.MOVE
+                ai.is_move_right = False
+                ai.x -= int(ai.velocity / 2)
+                if ai.x <= human.x :
+                    ai.x = human.x
+                ai.state = State.IDLE
+            else:
+                if self.random.randint(0,143) == 0:
+                    self.lock_animation = len(ai.attack_sprites) * self.max_num_frame
+                    ai.update_sprite(ai.attack_sprites)
+                    ai.state = State.ATTACK
+                    ai.index = 0
+                elif human.state == State.ATTACK and abs(distance) <= 100 and ai.state == State.IDLE:
+                    if self.random.randint(0,143) == 0:
+                        self.lock_animation = len(ai.guard_sprites) * self.max_num_frame
+                        ai.update_sprite(ai.guard_sprites)
+                        ai.state = State.GUARD
+                        ai.index = 0
+        elif ai.state == State.ATTACK:
+            if self.lock_animation < 0:
+                ai.state = State.IDLE
+            self.lock_animation -= 1
+        elif ai.state == State.GUARD:
+            if self.lock_animation < 0:
+                ai.state = State.IDLE
+            self.lock_animation -= 1
+
+
 
 class GameManager:
     def __init__(self, debug=False):
+        
         self.debug = debug
         self.screen_width = 1280
         self.screen_height = 720
@@ -528,18 +592,50 @@ class GameManager:
             Player(RYU_SPRITES_PATH, 50, 620, self.max_health, False, Direction.RIGHT),
             Player(RYU_SPRITES_PATH, self.screen_width - 230, 620, self.max_health, True, Direction.LEFT),
         ]
+        self.ai_controller = AI_Controller(self.fps)
+
+    def reset(self, debug=False):
+        self.debug = debug
+        self.screen_width = 1280
+        self.screen_height = 720
+        self.fps = 144
+        self.screen = pg.display.set_mode((self.screen_width, self.screen_height))
+        self.game_over = False
+        self.clock = pg.time.Clock()
+        self.timer = 90.0
+        self.delta_t = 1 / self.fps
+        self.bg_sprite: SpriteSheet = BackgroundSprite(KEN_STAGE_PATHS)
+        self.player_idx = 0
+        self.max_health = 500
+        self.menu = True
+        self.winner = ""
+        self.font_time = pg.font.SysFont("comicsans", 80, True, True)
+        self.font_player = pg.font.SysFont("impact", 40, False, False)
+        self.font_menu = pg.font.SysFont("consolas", 40, True, False)
+        self.font_option = pg.font.SysFont("consolas", 80, True, False)
+        self.players: list[Player] = [
+            Player(RYU_SPRITES_PATH, 50, 620, self.max_health, False, Direction.RIGHT),
+            Player(RYU_SPRITES_PATH, self.screen_width - 230, 620, self.max_health, True, Direction.LEFT),
+        ]
+        self.ai_controller = AI_Controller(self.fps)        
+
 
     def run(self):
         # main loop
         while not self.game_over:
-            # get single input
-            self.players[1 - self.player_idx].get_hit(self.players[self.player_idx])
-            self.players[self.player_idx].get_hit(self.players[1 - self.player_idx])
-            self.game_over = self.players[self.player_idx].handle_input()
+            if  (self.menu == False):
+                # get single input
+                self.players[1 - self.player_idx].get_hit(self.players[self.player_idx])
 
-            self.timer -= self.delta_t if self.menu == False and len(self.winner) == 0 else 0
-            if self.timer <= 0:
-                self.winner = "No"
+                self.players[self.player_idx].get_hit(self.players[1 - self.player_idx])
+
+                self.game_over = self.players[self.player_idx].handle_input()
+
+                self.ai_controller.update_AI_state(self.players[1-self.player_idx], self.players[self.player_idx])
+
+                self.timer -= self.delta_t if self.menu == False and len(self.winner) == 0 else 0
+                if self.timer <= 0:
+                    self.winner = "No"
 
             self.update()
             self.clock.tick(self.fps)
@@ -623,7 +719,8 @@ class GameManager:
                 if self.inner(menu_mouse_pos,(self.screen_width-quit_text.get_width())/2,(self.screen_width-quit_text.get_width())/2+ quit_rect[0],self.screen_height/2-round(quit_text.get_height()/2)+200,self.screen_height/2-round(quit_text.get_height()/2)+200+quit_rect[1] ):
                     self.game_over = True
                 elif self.inner(menu_mouse_pos,round((self.screen_width-retry_text.get_width())/2),round((self.screen_width-retry_text.get_width())/2)+retry_rect[0],self.screen_height/2-round(retry_text.get_height()/2)+100,self.screen_height/2-round(retry_text.get_height()/2)+100+retry_rect[1] ):
-                    print('Reset cai nay m lam di')
+                    self.reset()
+    
     def update(self):
         self.screen.blit(
             pg.transform.scale(self.bg_sprite.get_sprite(), (self.screen_width, self.screen_height)),
