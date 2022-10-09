@@ -250,8 +250,17 @@ class Player(SpriteSheet):
                 # self.current_handle_input = self._handle_input_IDLE
                 self.current_num_frames += 1
                 if self.current_num_frames >= self.max_num_frames:
+                    match self.current_sprites:
+                        case self.attack_sprites:
+                            self.state = State.ATTACK
+                        case self.kick_sprites:
+                            self.state = State.KICK
                     self.current_num_frames = 0
-                    self.index = (self.index + 1) % len(self.current_sprites)
+                    self.index = (self.index + 1)
+                if self.index >= len(self.current_sprites):
+                    self.state = State.IDLE
+                    self.current_sprites = self.idle_sprites
+                    self.index = 0
             case State.GUARD:
                 self.current_num_frames += 1
                 if self.current_num_frames >= self.max_num_frames:
@@ -344,8 +353,10 @@ class Player(SpriteSheet):
 
         for event in pg.event.get():
             if event.type == pg.KEYDOWN:
+                print(event.key)
                 match event.key:
                     case pg.K_a:
+                        print(event.key)
                         self.update_sprite(self.attack_sprites)
                         self.state = State.ATTACK
                         self.index = 0
