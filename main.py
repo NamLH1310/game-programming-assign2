@@ -8,6 +8,7 @@ from pygame.surface import Surface
 
 SOFT_GREEN = (186, 254, 202)
 BLUE = (0, 0, 248)
+LIGHT_BLUE = (135, 253, 255)
 RED = (255, 0, 0)
 P2 = (127, 255, 0)
 
@@ -124,7 +125,7 @@ class FireBall(SpriteSheet):
             return True
         elif type(other_obj) is Player:
             if self.get_hit_box().colliderect(other_obj.get_hurt_box()):
-                other_obj.health_bar -= 50
+                other_obj.health -= 50
                 return True
         return False
 
@@ -170,7 +171,7 @@ class Player(SpriteSheet):
         self.direction = direction
         self.is_move_right = True
         self.ground_y: float = y
-        self.health_bar = max_health
+        self.health = max_health
         self.hurt_box: dict[State, tuple[int, ...]] = {
             State.ATTACK: tuple(map(int, (15 * self.scaler, 20 * self.scaler, 40 * self.scaler, 80 * self.scaler))),
             State.GUARD: tuple(map(int, (15 * self.scaler, 20 * self.scaler, 40 * self.scaler, 80 * self.scaler))),
@@ -180,6 +181,7 @@ class Player(SpriteSheet):
         self.jump_height = 12
         self.gravity = 0.2
         self.jump_speed = self.jump_height
+        self.energy = 0
 
         self.idle_sprites: list[Surface] = [
             self.sprite.subsurface(pg.Rect(0, 10, 70, 95)),
@@ -301,7 +303,7 @@ class Player(SpriteSheet):
         return 1 if self.direction == Direction.LEFT else 0
 
     def get_health_bar(self):
-        return self.health_bar
+        return self.health
 
     def get_hit(self, opponent):
         """
@@ -315,17 +317,23 @@ class Player(SpriteSheet):
         for hit_box in opponent_hit_boxs:
             if hit_box.colliderect(self.get_hurt_box()) and self.current_num_frames == 0:
                 if self.state == State.GUARD:
-                    self.health_bar -= int(damage * 0.2)
+                    self.health -= int(damage * 0.2)
+                    self.energy += 7
+                    if self.energy > 100:
+                        self.energy = 100
                 else:
-                    self.health_bar -= damage
+                    self.health -= damage
 
+                opponent.energy += 10
+                if opponent.energy > 100:
+                    opponent.energy = 100
                 self.prev_x = self.x
                 self.x += 100 if self.direction == Direction.LEFT else -100
                 if self.x > 1280 - self.w:
                     self.x = 1280 - self.w
                 elif self.x < 0:
                     self.x = 0
-                print(self.health_bar)
+                print(self.health)
                 break
 
     def get_sprite(self) -> Surface:
@@ -426,7 +434,6 @@ class Player(SpriteSheet):
             self.update_sprite(self.move_sprites[index if self.is_move_right else 1 - index])
             self.state = State.MOVE
             self.is_move_right = True
-            self.direction = Direction.RIGHT
             self.x += self.velocity
             if self.x > 1280 - self.w:
                 self.x = 1280 - self.w
@@ -434,7 +441,6 @@ class Player(SpriteSheet):
             index = self.get_direction_idx()
             self.update_sprite(self.move_sprites[index if self.is_move_right else 1 - index])
             self.state = State.MOVE
-            self.direction = Direction.LEFT
             self.is_move_right = False
             self.x -= self.velocity
             if self.x < 0:
@@ -462,9 +468,11 @@ class Player(SpriteSheet):
                         self.state = State.KICK
                         self.index = 0
                     case pg.K_f:
-                        self.update_sprite(self.shoot_fireball_sprites)
-                        self.state = State.SHOOT_FIREBALL
-                        self.index = 0
+                        if self.energy >= 50:
+                            self.update_sprite(self.shoot_fireball_sprites)
+                            self.state = State.SHOOT_FIREBALL
+                            self.index = 0
+                            self.energy -= 50
 
                     case _:
                         self.state = State.IDLE
@@ -493,15 +501,15 @@ class Player(SpriteSheet):
                         damage = 10
                         if self.direction == Direction.LEFT:
                             return [
-                                pg
-                                .Rect(-140, 40, self.current_sprites[2].get_width() - offset_x, 25)
-                                .move(self.x, self.ground_y - h)
-                            ], damage
+                                       pg
+                                       .Rect(-140, 40, self.current_sprites[2].get_width() - offset_x, 25)
+                                       .move(self.x, self.ground_y - h)
+                                   ], damage
                         return [
-                            pg
-                            .Rect(offset_x, 40, self.current_sprites[2].get_width() - offset_x, 25)
-                            .move(self.x, self.ground_y - h)
-                        ], damage
+                                   pg
+                                   .Rect(offset_x, 40, self.current_sprites[2].get_width() - offset_x, 25)
+                                   .move(self.x, self.ground_y - h)
+                               ], damage
                     case 9:
                         offset_xs = [
                             190,
@@ -511,40 +519,43 @@ class Player(SpriteSheet):
                         damage = 20
                         if self.direction == Direction.LEFT:
                             return [
-                                pg
-                                .Rect(-55, 30, self.current_sprites[8].get_width() - offset_xs[-3] - 50, 40)
-                                .move(self.x, self.ground_y - h),
-                                pg
-                                .Rect(-70, 70, self.current_sprites[8].get_width() - offset_xs[-2] - 20, 40)
-                                .move(self.x, self.ground_y - h),
-                                pg
-                                .Rect(-95, 110, self.current_sprites[9].get_width() - offset_xs[-1] - 10, 40)
-                                .move(self.x, self.ground_y - h),
-                            ], damage
+                                       pg
+                                       .Rect(-55, 30, self.current_sprites[8].get_width() - offset_xs[-3] - 50, 40)
+                                       .move(self.x, self.ground_y - h),
+                                       pg
+                                       .Rect(-70, 70, self.current_sprites[8].get_width() - offset_xs[-2] - 20, 40)
+                                       .move(self.x, self.ground_y - h),
+                                       pg
+                                       .Rect(-95, 110, self.current_sprites[9].get_width() - offset_xs[-1] - 10, 40)
+                                       .move(self.x, self.ground_y - h),
+                                   ], damage
                         return [
-                            pg
-                            .Rect(offset_xs[-3], 30, self.current_sprites[8].get_width() - offset_xs[-3] - 50, 40)
-                            .move(self.x, self.ground_y - h),
-                            pg
-                            .Rect(offset_xs[-2], 70, self.current_sprites[8].get_width() - offset_xs[-2] - 20, 40)
-                            .move(self.x, self.ground_y - h),
-                            pg
-                            .Rect(offset_xs[-1], 110, self.current_sprites[9].get_width() - offset_xs[-1] - 10, 40)
-                            .move(self.x, self.ground_y - h)
-                        ], damage
+                                   pg
+                                   .Rect(offset_xs[-3], 30, self.current_sprites[8].get_width() - offset_xs[-3] - 50,
+                                         40)
+                                   .move(self.x, self.ground_y - h),
+                                   pg
+                                   .Rect(offset_xs[-2], 70, self.current_sprites[8].get_width() - offset_xs[-2] - 20,
+                                         40)
+                                   .move(self.x, self.ground_y - h),
+                                   pg
+                                   .Rect(offset_xs[-1], 110, self.current_sprites[9].get_width() - offset_xs[-1] - 10,
+                                         40)
+                                   .move(self.x, self.ground_y - h)
+                               ], damage
                     case 12:
                         offset_x = 160
                         if self.direction == Direction.LEFT:
                             return [
-                                pg
-                                .Rect(-30, 0, self.current_sprites[12].get_width() - offset_x - 5, 100)
-                                .move(self.x, self.ground_y - h)
-                            ], 30
+                                       pg
+                                       .Rect(-30, 0, self.current_sprites[12].get_width() - offset_x - 5, 100)
+                                       .move(self.x, self.ground_y - h)
+                                   ], 30
                         return [
-                            pg
-                            .Rect(offset_x, 0, self.current_sprites[12].get_width() - offset_x - 5, 100)
-                            .move(self.x, self.ground_y - h)
-                        ], 30
+                                   pg
+                                   .Rect(offset_x, 0, self.current_sprites[12].get_width() - offset_x - 5, 100)
+                                   .move(self.x, self.ground_y - h)
+                               ], 30
             case State.KICK:
                 match self.index:
                     case 2:
@@ -557,27 +568,27 @@ class Player(SpriteSheet):
                         damage = 10
                         if self.direction == Direction.LEFT:
                             return [
-                                pg
-                                .Rect(-20, 50, offset_xs[-2] - offset_xs[-3], 40)
-                                .move(self.x, self.ground_y - h),
-                                pg
-                                .Rect(-50, 30, offset_xs[-1] - offset_xs[-2], 40)
-                                .move(self.x, self.ground_y - h),
-                                pg
-                                .Rect(-120, 10, w - offset_xs[-1], 30)
-                                .move(self.x, self.ground_y - h),
-                            ], damage
+                                       pg
+                                       .Rect(-20, 50, offset_xs[-2] - offset_xs[-3], 40)
+                                       .move(self.x, self.ground_y - h),
+                                       pg
+                                       .Rect(-50, 30, offset_xs[-1] - offset_xs[-2], 40)
+                                       .move(self.x, self.ground_y - h),
+                                       pg
+                                       .Rect(-120, 10, w - offset_xs[-1], 30)
+                                       .move(self.x, self.ground_y - h),
+                                   ], damage
                         return [
-                            pg
-                            .Rect(offset_xs[-3], 50, offset_xs[-2] - offset_xs[-3], 40)
-                            .move(self.x, self.ground_y - h),
-                            pg
-                            .Rect(offset_xs[-2], 30, offset_xs[-1] - offset_xs[-2], 40)
-                            .move(self.x, self.ground_y - h),
-                            pg
-                            .Rect(offset_xs[-1], 10, w - offset_xs[-1], 30)
-                            .move(self.x, self.ground_y - h),
-                        ], damage
+                                   pg
+                                   .Rect(offset_xs[-3], 50, offset_xs[-2] - offset_xs[-3], 40)
+                                   .move(self.x, self.ground_y - h),
+                                   pg
+                                   .Rect(offset_xs[-2], 30, offset_xs[-1] - offset_xs[-2], 40)
+                                   .move(self.x, self.ground_y - h),
+                                   pg
+                                   .Rect(offset_xs[-1], 10, w - offset_xs[-1], 30)
+                                   .move(self.x, self.ground_y - h),
+                               ], damage
                     case 5:
                         w = self.current_sprites[5].get_width()
                         offset_xs = [
@@ -587,21 +598,21 @@ class Player(SpriteSheet):
                         damage = 15
                         if self.direction == Direction.LEFT:
                             return [
-                                pg
-                                .Rect(0, 110, w - offset_xs[-2] - 50, 30)
-                                .move(self.x, self.ground_y - h),
-                                pg
-                                .Rect(-40, 140, w - offset_xs[-1] - 10, 30)
-                                .move(self.x, self.ground_y - h),
-                            ], damage
+                                       pg
+                                       .Rect(0, 110, w - offset_xs[-2] - 50, 30)
+                                       .move(self.x, self.ground_y - h),
+                                       pg
+                                       .Rect(-40, 140, w - offset_xs[-1] - 10, 30)
+                                       .move(self.x, self.ground_y - h),
+                                   ], damage
                         return [
-                            pg
-                            .Rect(offset_xs[-2], 110, w - offset_xs[-2] - 50, 30)
-                            .move(self.x, self.ground_y - h),
-                            pg
-                            .Rect(offset_xs[-1], 140, w - offset_xs[-1] - 10, 30)
-                            .move(self.x, self.ground_y - h),
-                        ], damage
+                                   pg
+                                   .Rect(offset_xs[-2], 110, w - offset_xs[-2] - 50, 30)
+                                   .move(self.x, self.ground_y - h),
+                                   pg
+                                   .Rect(offset_xs[-1], 140, w - offset_xs[-1] - 10, 30)
+                                   .move(self.x, self.ground_y - h),
+                               ], damage
 
         return [], 0
 
@@ -743,19 +754,27 @@ class GameManager:
     def draw_top_bar(self):
         time_text = self.font_time.render(str(round(self.timer)), True, (0, 0, 0))
         self.screen.blit(time_text, (550 + round(180 - time_text.get_width()) / 2, 50))
-        health_1 = self.players[0].get_health_bar()
-        health_2 = self.players[1].get_health_bar()
+        health_1 = self.players[0].health
+        health_2 = self.players[1].health
         name_plate_1 = self.font_player.render('Player 1', False, (0, 0, 0))
         name_plate_2 = self.font_player.render('Player 2', False, (0, 0, 0))
         self.screen.blit(name_plate_1, (50, 30))
-        self.screen.blit(name_plate_2, (730, 30))
+        self.screen.blit(name_plate_2, (1230 - name_plate_2.get_width(), 30))
 
         pg.draw.rect(self.screen, RED, (50, 50 + round(time_text.get_height() / 2) - 15, 500, 30))
-        pg.draw.rect(self.screen, SOFT_GREEN, (50, 50 + round(time_text.get_height() / 2) - 15, 500 - round(
+        pg.draw.rect(self.screen, SOFT_GREEN, (50, 35 + round(time_text.get_height() / 2), 500 - round(
             500 / self.max_health * (self.max_health - health_1)) if health_1 > 0 else 0, 30))
         pg.draw.rect(self.screen, RED, (730, 50 + round(time_text.get_height() / 2) - 15, 500, 30))
-        pg.draw.rect(self.screen, SOFT_GREEN, (730, 50 + round(time_text.get_height() / 2) - 15, 500 - round(
+        pg.draw.rect(self.screen, SOFT_GREEN, (730, 35 + round(time_text.get_height() / 2), 500 - round(
             500 / self.max_health * (self.max_health - health_2)) if health_2 > 0 else 0, 30))
+
+        pg.draw.rect(self.screen, LIGHT_BLUE, (50, 65 + (time_text.get_height() >> 1), 100, 15))
+        pg.draw.rect(self.screen, BLUE,
+                     (50, 65 + (time_text.get_height() >> 1), self.players[self.player_idx].energy, 15))
+
+        pg.draw.rect(self.screen, LIGHT_BLUE, (1130, 65 + (time_text.get_height() >> 1), 100, 15))
+        pg.draw.rect(self.screen, BLUE,
+                     (1130, 65 + (time_text.get_height() >> 1), self.players[1 - self.player_idx].energy, 15))
 
         if health_1 <= 0:
             self.winner = "PLAYER 2"
