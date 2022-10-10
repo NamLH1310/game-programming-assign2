@@ -160,6 +160,8 @@ class Player(SpriteSheet):
     def __init__(self, path: str, x: int, y: int, max_health: int, p2: bool, direction: Direction):
         super().__init__()
         self.p2 = p2
+        self.punch_sound = pg.mixer.Sound('assets/sound/punch.mp3')
+        self.hadouken_sound = pg.mixer.Sound('assets/sound/hadouken.mp3')
         self.scaler = 2.5
         self.max_num_frames = 20
         self.sprite = pg.image.load(path).convert()
@@ -323,7 +325,7 @@ class Player(SpriteSheet):
                         self.energy = 100
                 else:
                     self.health -= damage
-
+                pg.mixer.Sound.play(self.punch_sound)
                 opponent.energy += 10
                 if opponent.energy > 100:
                     opponent.energy = 100
@@ -679,7 +681,6 @@ class AIController:
 
 class GameManager:
     def __init__(self, debug=False):
-
         self.debug = debug
         self.screen_width = 1280
         self.screen_height = 720
@@ -730,6 +731,8 @@ class GameManager:
         self.ai_controller = AIController(self.fps)
 
     def run(self):
+        pg.mixer.music.load('assets/sound/guile-theme.mp3')
+        pg.mixer.music.play(-1)
         # main loop
         while not self.game_over:
             if not self.menu:
