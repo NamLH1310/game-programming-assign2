@@ -625,13 +625,29 @@ class AIController:
         self.max_num_frame = max_num_frame
         self.random = random.SystemRandom()
 
+    def is_able_shoot_fireball(self, ai: Direction, human: Direction, distance: int) -> bool:
+        if ai == Direction.LEFT and human == Direction.RIGHT:
+            return True if distance > 0 else False
+        elif ai == Direction.RIGHT and human == Direction.LEFT:
+            return True if distance < 0 else False
+        else:
+            return False
+
     def update_AI_state(self, ai: Player, human: Player) -> None:
 
         distance = ai.x - human.x
 
         if ai.state == State.IDLE:
+
+            # When ai energy above threshold and it has opposite direction as player, shoot fireball immediately
+            if ai.energy >= 50 and self.is_able_shoot_fireball(ai.direction, human.direction, distance):
+                    self.lock_animation = len(ai.shoot_fireball_sprites) * self.max_num_frame
+                    ai.energy -= 50
+                    ai.update_sprite(ai.shoot_fireball_sprites)
+                    ai.state = State.SHOOT_FIREBALL
+                    ai.index = 0
             # In IDLE, it has the tendency to move towards the player
-            if distance < -100:
+            elif distance < -150:
                 ai.direction = Direction.RIGHT
                 index = ai.get_direction_idx()
                 ai.update_sprite(ai.move_sprites[index if ai.is_move_right else 1 - index])
@@ -643,7 +659,7 @@ class AIController:
                 elif ai.x >= 1280:
                     ai.x = 1280
                 ai.state = State.IDLE
-            elif distance >= 100:
+            elif distance >= 150:
                 ai.direction = Direction.LEFT
                 index = ai.get_direction_idx()
                 ai.update_sprite(ai.move_sprites[index if ai.is_move_right else 1 - index])
@@ -660,10 +676,19 @@ class AIController:
                     ai.state = State.GUARD
                     ai.index = 0
                 else:
-                    self.lock_animation = len(ai.attack_sprites) * self.max_num_frame
-                    ai.update_sprite(ai.attack_sprites)
-                    ai.state = State.ATTACK
-                    ai.index = 0
+                    seed = self.random.randint(0,1)
+                    match seed:
+                        case 0:
+                            self.lock_animation = len(ai.attack_sprites) * self.max_num_frame
+                            ai.update_sprite(ai.attack_sprites)
+                            ai.state = State.ATTACK
+                            ai.index = 0
+                        case 1:
+                            self.lock_animation = len(ai.kick_sprites) * self.max_num_frame
+                            ai.update_sprite(ai.kick_sprites)
+                            ai.state = State.KICK
+                            ai.index = 0
+
 
         # elif ai.state == State.ATTACK:
         #     if self.lock_animation < 0:
