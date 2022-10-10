@@ -1,7 +1,7 @@
 import logging as log
+import random
 from abc import ABC, abstractmethod
 from enum import Enum
-import random
 
 import pygame as pg
 from pygame.surface import Surface
@@ -309,21 +309,23 @@ class Player(SpriteSheet):
         :type opponent: Player
         :return:
         """
-        if not opponent.get_hit_box():
+        opponent_hit_boxs, damage = opponent.get_hit_boxs_and_damage()
+        if not opponent.get_hit_boxs_and_damage():
             return
-        for hit_box in opponent.get_hit_box():
+        for hit_box in opponent_hit_boxs:
             if hit_box.colliderect(self.get_hurt_box()) and self.current_num_frames == 0:
-                match opponent.index:
-                    case _:
-                        self.health_bar -= 20
-                        self.prev_x = self.x
-                        self.x += 100 if self.direction == Direction.LEFT else -100
-                        if self.x > 1280 - self.w :
-                            self.x =1280 - self.w
-                        elif self.x<0:
-                            self.x = 0
+                if self.state == State.GUARD:
+                    self.health_bar -= int(damage * 0.2)
+                else:
+                    self.health_bar -= damage
+
+                self.prev_x = self.x
+                self.x += 100 if self.direction == Direction.LEFT else -100
+                if self.x > 1280 - self.w:
+                    self.x = 1280 - self.w
+                elif self.x < 0:
+                    self.x = 0
                 print(self.health_bar)
-                print('ittai', opponent.index)
                 break
 
     def get_sprite(self) -> Surface:
@@ -480,7 +482,7 @@ class Player(SpriteSheet):
             return pg.Rect(self.x - int(d * 0.4), self.ground_y - h, int(w * 0.6), h - 25).move(0, 25)
         return pg.Rect(self.x, self.ground_y - h, int(w * 0.6), h - 25).move(30, 25)
 
-    def get_hit_box(self) -> list[pg.Rect]:
+    def get_hit_boxs_and_damage(self) -> tuple[list[pg.Rect], int]:
         new_idx = self.index % len(self.current_sprites)
         h = self.current_sprites[new_idx].get_height()
         match self.state:
@@ -488,23 +490,25 @@ class Player(SpriteSheet):
                 match self.index:
                     case 2:
                         offset_x = 180
+                        damage = 10
                         if self.direction == Direction.LEFT:
                             return [
                                 pg
                                 .Rect(-140, 40, self.current_sprites[2].get_width() - offset_x, 25)
                                 .move(self.x, self.ground_y - h)
-                            ]
+                            ], damage
                         return [
                             pg
                             .Rect(offset_x, 40, self.current_sprites[2].get_width() - offset_x, 25)
                             .move(self.x, self.ground_y - h)
-                        ]
+                        ], damage
                     case 9:
                         offset_xs = [
                             190,
                             205,
                             230,
                         ]
+                        damage = 20
                         if self.direction == Direction.LEFT:
                             return [
                                 pg
@@ -516,7 +520,7 @@ class Player(SpriteSheet):
                                 pg
                                 .Rect(-95, 110, self.current_sprites[9].get_width() - offset_xs[-1] - 10, 40)
                                 .move(self.x, self.ground_y - h),
-                            ]
+                            ], damage
                         return [
                             pg
                             .Rect(offset_xs[-3], 30, self.current_sprites[8].get_width() - offset_xs[-3] - 50, 40)
@@ -527,7 +531,7 @@ class Player(SpriteSheet):
                             pg
                             .Rect(offset_xs[-1], 110, self.current_sprites[9].get_width() - offset_xs[-1] - 10, 40)
                             .move(self.x, self.ground_y - h)
-                        ]
+                        ], damage
                     case 12:
                         offset_x = 160
                         if self.direction == Direction.LEFT:
@@ -535,12 +539,12 @@ class Player(SpriteSheet):
                                 pg
                                 .Rect(-30, 0, self.current_sprites[12].get_width() - offset_x - 5, 100)
                                 .move(self.x, self.ground_y - h)
-                            ]
+                            ], 30
                         return [
                             pg
                             .Rect(offset_x, 0, self.current_sprites[12].get_width() - offset_x - 5, 100)
                             .move(self.x, self.ground_y - h)
-                        ]
+                        ], 30
             case State.KICK:
                 match self.index:
                     case 2:
@@ -550,6 +554,7 @@ class Player(SpriteSheet):
                             200,
                             230,
                         ]
+                        damage = 10
                         if self.direction == Direction.LEFT:
                             return [
                                 pg
@@ -561,7 +566,7 @@ class Player(SpriteSheet):
                                 pg
                                 .Rect(-120, 10, w - offset_xs[-1], 30)
                                 .move(self.x, self.ground_y - h),
-                            ]
+                            ], damage
                         return [
                             pg
                             .Rect(offset_xs[-3], 50, offset_xs[-2] - offset_xs[-3], 40)
@@ -572,13 +577,14 @@ class Player(SpriteSheet):
                             pg
                             .Rect(offset_xs[-1], 10, w - offset_xs[-1], 30)
                             .move(self.x, self.ground_y - h),
-                        ]
+                        ], damage
                     case 5:
                         w = self.current_sprites[5].get_width()
                         offset_xs = [
                             120,
                             150,
                         ]
+                        damage = 15
                         if self.direction == Direction.LEFT:
                             return [
                                 pg
@@ -587,7 +593,7 @@ class Player(SpriteSheet):
                                 pg
                                 .Rect(-40, 140, w - offset_xs[-1] - 10, 30)
                                 .move(self.x, self.ground_y - h),
-                            ]
+                            ], damage
                         return [
                             pg
                             .Rect(offset_xs[-2], 110, w - offset_xs[-2] - 50, 30)
@@ -595,18 +601,18 @@ class Player(SpriteSheet):
                             pg
                             .Rect(offset_xs[-1], 140, w - offset_xs[-1] - 10, 30)
                             .move(self.x, self.ground_y - h),
-                        ]
+                        ], damage
 
-        return []
+        return [], 0
 
-class AI_Controller:
+
+class AIController:
     def __init__(self, max_num_frame: int):
         self.lock_animation = 0
         self.max_num_frame = max_num_frame
         self.random = random.SystemRandom()
 
-
-    def update_AI_state(self, ai : Player, human: Player) -> None:
+    def update_AI_state(self, ai: Player, human: Player) -> None:
 
         distance = ai.x - human.x
 
@@ -618,7 +624,7 @@ class AI_Controller:
                 ai.update_sprite(ai.move_sprites[index if ai.is_move_right else 1 - index])
                 ai.state = State.MOVE
                 ai.is_move_right = True
-                ai.x += int(ai.velocity * 1/2)
+                ai.x += int(ai.velocity * 1 / 2)
                 if ai.x >= human.x:
                     ai.x = human.x
                 elif ai.x >= 1280:
@@ -631,30 +637,33 @@ class AI_Controller:
                 ai.state = State.MOVE
                 ai.is_move_right = False
                 ai.x -= int(ai.velocity / 2)
-                if ai.x <= human.x :
+                if ai.x <= human.x:
                     ai.x = human.x
                 ai.state = State.IDLE
-            else:
-                if self.random.randint(0,143) == 0:
+            elif self.random.randint(0, 143) == 0:
+                if human.state == State.ATTACK and abs(distance) <= 100 and ai.state == State.IDLE:
+                    self.lock_animation = len(ai.guard_sprites) * self.max_num_frame
+                    ai.update_sprite(ai.guard_sprites)
+                    ai.state = State.GUARD
+                    ai.index = 0
+                else:
                     self.lock_animation = len(ai.attack_sprites) * self.max_num_frame
                     ai.update_sprite(ai.attack_sprites)
                     ai.state = State.ATTACK
                     ai.index = 0
-                elif human.state == State.ATTACK and abs(distance) <= 100 and ai.state == State.IDLE:
-                    if self.random.randint(0,143) == 0:
-                        self.lock_animation = len(ai.guard_sprites) * self.max_num_frame
-                        ai.update_sprite(ai.guard_sprites)
-                        ai.state = State.GUARD
-                        ai.index = 0
-        elif ai.state == State.ATTACK:
-            if self.lock_animation < 0:
-                ai.state = State.IDLE
-            self.lock_animation -= 1
-        elif ai.state == State.GUARD:
-            if self.lock_animation < 0:
-                ai.state = State.IDLE
-            self.lock_animation -= 1
 
+        # elif ai.state == State.ATTACK:
+        #     if self.lock_animation < 0:
+        #         ai.state = State.IDLE
+        #     self.lock_animation -= 1
+        # elif ai.state == State.GUARD:
+        #     if self.lock_animation < 0:
+        #         ai.state = State.IDLE
+        #     self.lock_animation -= 1
+        else:
+            if self.lock_animation < 0:
+                ai.state = State.IDLE
+            self.lock_animation -= 1
 
 
 class GameManager:
@@ -682,7 +691,7 @@ class GameManager:
             Player(RYU_SPRITES_PATH, 50, 620, self.max_health, False, Direction.RIGHT),
             Player(RYU_SPRITES_PATH, self.screen_width - 230, 620, self.max_health, True, Direction.LEFT),
         ]
-        self.ai_controller = AI_Controller(self.fps)
+        self.ai_controller = AIController(self.fps)
 
     def reset(self, debug=False):
         self.debug = debug
@@ -707,13 +716,12 @@ class GameManager:
             Player(RYU_SPRITES_PATH, 50, 620, self.max_health, False, Direction.RIGHT),
             Player(RYU_SPRITES_PATH, self.screen_width - 230, 620, self.max_health, True, Direction.LEFT),
         ]
-        self.ai_controller = AI_Controller(self.fps)
-
+        self.ai_controller = AIController(self.fps)
 
     def run(self):
         # main loop
         while not self.game_over:
-            if  (self.menu == False):
+            if not self.menu:
                 # get single input
                 self.players[1 - self.player_idx].get_hit(self.players[self.player_idx])
 
@@ -721,7 +729,7 @@ class GameManager:
 
                 self.game_over = self.players[self.player_idx].handle_input()
 
-                self.ai_controller.update_AI_state(self.players[1-self.player_idx], self.players[self.player_idx])
+                self.ai_controller.update_AI_state(self.players[1 - self.player_idx], self.players[self.player_idx])
 
                 self.timer -= self.delta_t if len(self.winner) == 0 else 0
                 if self.timer <= 0:
@@ -759,54 +767,71 @@ class GameManager:
         return not (point[0] > x1 or point[0] < x0 or point[1] > y1 or point[1] < y0)
 
     def draw_menu_screen(self):
-        if self.menu == False:
+        if not self.menu:
             return
-        self.screen.fill((0,0,0))
+        self.screen.fill((0, 0, 0))
         menu_mouse_pos = pg.mouse.get_pos()
-        menu_text = self.font_menu.render("MENU",True, (255,255,255))
-        quit_text = self.font_menu.render("QUIT",True, (255,255,255))
-        quit_rect=(quit_text.get_width(),quit_text.get_height())
+        menu_text = self.font_menu.render("MENU", True, (255, 255, 255))
+        quit_text = self.font_menu.render("QUIT", True, (255, 255, 255))
+        quit_rect = (quit_text.get_width(), quit_text.get_height())
 
-        player_1_button = self.font_option.render("PLAYER 1", True, (255,255,255))
-        player_2_button = self.font_option.render("PLAYER 2", True, (255,255,255))
-        
-        self.screen.blit(menu_text,(round((self.screen_width-menu_text.get_width())/2),70))
-        self.screen.blit(quit_text,(round((self.screen_width-menu_text.get_width())/2),self.screen_height/2+100))
-        
-        self.screen.blit(player_1_button,(200,self.screen_height/2-100))
-        self.screen.blit(player_2_button,(self.screen_width-200-player_2_button.get_width(),self.screen_height/2-100))
+        player_1_button = self.font_option.render("PLAYER 1", True, (255, 255, 255))
+        player_2_button = self.font_option.render("PLAYER 2", True, (255, 255, 255))
+
+        self.screen.blit(menu_text, (round((self.screen_width - menu_text.get_width()) / 2), 70))
+        self.screen.blit(quit_text,
+                         (round((self.screen_width - menu_text.get_width()) / 2), self.screen_height / 2 + 100))
+
+        self.screen.blit(player_1_button, (200, self.screen_height / 2 - 100))
+        self.screen.blit(player_2_button,
+                         (self.screen_width - 200 - player_2_button.get_width(), self.screen_height / 2 - 100))
         ev = pg.event.get()
         for event in ev:
             if event.type == pg.MOUSEBUTTONDOWN:
-                if self.inner(menu_mouse_pos,(self.screen_width-menu_text.get_width())/2,(self.screen_width-menu_text.get_width())/2+ quit_rect[0],self.screen_height/2+100,self.screen_height/2+100+quit_rect[1] ):
+                if self.inner(menu_mouse_pos, (self.screen_width - menu_text.get_width()) / 2,
+                              (self.screen_width - menu_text.get_width()) / 2 + quit_rect[0],
+                              self.screen_height / 2 + 100, self.screen_height / 2 + 100 + quit_rect[1]):
                     self.game_over = True
-                elif self.inner(menu_mouse_pos,200,200+player_1_button.get_width(),self.screen_height/2-100,self.screen_height/2-100+player_1_button.get_height() ):
+                elif self.inner(menu_mouse_pos, 200, 200 + player_1_button.get_width(), self.screen_height / 2 - 100,
+                                self.screen_height / 2 - 100 + player_1_button.get_height()):
                     self.player_idx = 0
                     self.menu = False
-                elif self.inner(menu_mouse_pos,self.screen_width-200-player_2_button.get_width(),self.screen_width-200,self.screen_height/2-100,self.screen_height/2-100+player_2_button.get_height() ):
+                elif self.inner(menu_mouse_pos, self.screen_width - 200 - player_2_button.get_width(),
+                                self.screen_width - 200, self.screen_height / 2 - 100,
+                                self.screen_height / 2 - 100 + player_2_button.get_height()):
                     self.player_idx = 1
                     self.menu = False
-    
+
     def draw_game_over(self):
-        if len(self.winner)==0:
+        if len(self.winner) == 0:
             return
-        self.screen.fill((0,0,0))
-        retry_text = self.font_menu.render("RETRY",True, (255,255,255))
-        quit_text = self.font_menu.render("QUIT",True, (255,255,255))
-        winner_text =self.font_menu.render((self.winner + " WIN!" if self.winner != "No" else "DRAW!!!"),True,(255,255,255))
-        quit_rect=(quit_text.get_width(),quit_text.get_height())
-        retry_rect=(retry_text.get_width(),retry_text.get_height())
+        self.screen.fill((0, 0, 0))
+        retry_text = self.font_menu.render("RETRY", True, (255, 255, 255))
+        quit_text = self.font_menu.render("QUIT", True, (255, 255, 255))
+        winner_text = self.font_menu.render((self.winner + " WIN!" if self.winner != "No" else "DRAW!!!"), True,
+                                            (255, 255, 255))
+        quit_rect = (quit_text.get_width(), quit_text.get_height())
+        retry_rect = (retry_text.get_width(), retry_text.get_height())
         menu_mouse_pos = pg.mouse.get_pos()
 
-        self.screen.blit(retry_text,(round((self.screen_width-retry_text.get_width())/2),self.screen_height/2-round(retry_text.get_height()/2)+100))
-        self.screen.blit(winner_text,(round((self.screen_width-winner_text.get_width())/2),self.screen_height/2-round(winner_text.get_height()/2)-100))    
-        self.screen.blit(quit_text,(round((self.screen_width-quit_text.get_width())/2),self.screen_height/2-round(quit_text.get_height()/2)+200))
+        self.screen.blit(retry_text, (round((self.screen_width - retry_text.get_width()) / 2),
+                                      self.screen_height / 2 - round(retry_text.get_height() / 2) + 100))
+        self.screen.blit(winner_text, (round((self.screen_width - winner_text.get_width()) / 2),
+                                       self.screen_height / 2 - round(winner_text.get_height() / 2) - 100))
+        self.screen.blit(quit_text, (round((self.screen_width - quit_text.get_width()) / 2),
+                                     self.screen_height / 2 - round(quit_text.get_height() / 2) + 200))
         ev = pg.event.get()
         for event in ev:
             if event.type == pg.MOUSEBUTTONDOWN:
-                if self.inner(menu_mouse_pos,(self.screen_width-quit_text.get_width())/2,(self.screen_width-quit_text.get_width())/2+ quit_rect[0],self.screen_height/2-round(quit_text.get_height()/2)+200,self.screen_height/2-round(quit_text.get_height()/2)+200+quit_rect[1] ):
+                if self.inner(menu_mouse_pos, (self.screen_width - quit_text.get_width()) / 2,
+                              (self.screen_width - quit_text.get_width()) / 2 + quit_rect[0],
+                              self.screen_height / 2 - round(quit_text.get_height() / 2) + 200,
+                              self.screen_height / 2 - round(quit_text.get_height() / 2) + 200 + quit_rect[1]):
                     self.game_over = True
-                elif self.inner(menu_mouse_pos,round((self.screen_width-retry_text.get_width())/2),round((self.screen_width-retry_text.get_width())/2)+retry_rect[0],self.screen_height/2-round(retry_text.get_height()/2)+100,self.screen_height/2-round(retry_text.get_height()/2)+100+retry_rect[1] ):
+                elif self.inner(menu_mouse_pos, round((self.screen_width - retry_text.get_width()) / 2),
+                                round((self.screen_width - retry_text.get_width()) / 2) + retry_rect[0],
+                                self.screen_height / 2 - round(retry_text.get_height() / 2) + 100,
+                                self.screen_height / 2 - round(retry_text.get_height() / 2) + 100 + retry_rect[1]):
                     self.reset()
 
     def update(self):
@@ -814,7 +839,7 @@ class GameManager:
             pg.transform.scale(self.bg_sprite.get_sprite(), (self.screen_width, self.screen_height)),
             (0, 0),
         )
-        
+
         self.draw_top_bar()
 
         for fb in self.players[self.player_idx].fireballs:
@@ -842,7 +867,7 @@ class GameManager:
                 hurt_box = player.get_hurt_box()
                 if hurt_box:
                     pg.draw.rect(self.screen, BLUE, hurt_box, 3)
-                hit_box = player.get_hit_box()
+                hit_box, _ = player.get_hit_boxs_and_damage()
                 if hit_box:
                     for hb in hit_box:
                         pg.draw.rect(self.screen, RED, hb, 3)
@@ -862,7 +887,8 @@ class GameManager:
 
 def main():
     GameManager(True).run()
-    
+
+
 def change_color(image: Surface, color):
     coloured_image = pg.Surface(image.get_size())
     coloured_image.fill(color)
